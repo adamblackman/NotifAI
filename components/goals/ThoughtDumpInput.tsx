@@ -6,13 +6,14 @@ import { Colors } from '@/constants/Colors';
 
 interface ThoughtDumpInputProps {
   onSubmit: (thought: string) => void;
+  loading?: boolean;
 }
 
-export function ThoughtDumpInput({ onSubmit }: ThoughtDumpInputProps) {
+export function ThoughtDumpInput({ onSubmit, loading = false }: ThoughtDumpInputProps) {
   const [thought, setThought] = useState('');
 
   const handleSubmit = () => {
-    if (thought.trim()) {
+    if (thought.trim() && !loading) {
       onSubmit(thought.trim());
       setThought('');
     }
@@ -30,9 +31,9 @@ export function ThoughtDumpInput({ onSubmit }: ThoughtDumpInputProps) {
         variant="large"
       />
       <Button
-        title="Generate Plan"
+        title={loading ? "Generating..." : "Generate Plan"}
         onPress={handleSubmit}
-        disabled={!thought.trim()}
+        disabled={!thought.trim() || loading}
         style={styles.button}
       />
     </View>

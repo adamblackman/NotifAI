@@ -1,0 +1,65 @@
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Colors } from '@/constants/Colors';
+
+interface ThoughtDumpInputProps {
+  onSubmit: (thought: string) => void;
+}
+
+export function ThoughtDumpInput({ onSubmit }: ThoughtDumpInputProps) {
+  const [thought, setThought] = useState('');
+
+  const handleSubmit = () => {
+    if (thought.trim()) {
+      onSubmit(thought.trim());
+      setThought('');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Input
+        placeholder="What would you like to achieve? Describe your goal..."
+        value={thought}
+        onChangeText={setThought}
+        multiline
+        numberOfLines={3}
+        style={styles.input}
+        variant="large"
+      />
+      <Button
+        title="Generate Plan"
+        onPress={handleSubmit}
+        disabled={!thought.trim()}
+        style={styles.button}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.white,
+    padding: 20,
+    borderRadius: 16,
+    margin: 16,
+    shadowColor: Colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  input: {
+    height: 80,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  button: {
+    width: '100%',
+  },
+});

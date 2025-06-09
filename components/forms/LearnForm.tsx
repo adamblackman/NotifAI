@@ -4,14 +4,14 @@ import { Plus, X, GripVertical, ArrowLeft } from 'lucide-react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/Colors';
-import { LearningGoal, CurriculumItem } from '@/types/Goal';
+import { LearnGoal, CurriculumItem } from '@/types/Goal';
 
-interface LearningFormProps {
-  onSubmit: (data: Partial<LearningGoal>) => void;
+interface LearnFormProps {
+  onSubmit: (data: Partial<LearnGoal>) => void;
   onCancel: () => void;
 }
 
-export function LearningForm({ onSubmit, onCancel }: LearningFormProps) {
+export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [curriculumItems, setCurriculumItems] = useState<CurriculumItem[]>([]);
@@ -54,7 +54,7 @@ export function LearningForm({ onSubmit, onCancel }: LearningFormProps) {
         description: description.trim(),
         curriculumItems,
         progress: 0,
-        category: 'learning',
+        category: 'learn',
       });
     }
   };
@@ -84,11 +84,11 @@ export function LearningForm({ onSubmit, onCancel }: LearningFormProps) {
         >
           <ArrowLeft size={24} color={Colors.gray700} />
         </TouchableOpacity>
-        <Text style={styles.title}>Create Learning Goal</Text>
+        <Text style={styles.title}>Create Learn Goal</Text>
       </View>
       
       <Input
-        placeholder="Learning goal title"
+        placeholder="Learn goal title"
         value={title}
         onChangeText={setTitle}
         style={styles.input}

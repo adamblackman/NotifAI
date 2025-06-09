@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { Circle, CircleCheck as CheckCircle, Plus, GripVertical, SquareCheck as CheckSquare } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -12,31 +12,53 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
-import { ProjectGoal, Task } from '@/types/Goal';
-
-interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  category: 'habit' | 'project' | 'learning' | 'saving';
-  data: Record<string, any>;
-  xpEarned: number;
-  createdAt: string;
-  completedAt: string | null;
-  updatedAt: string;
-}
+import { ProjectGoal, Task, Goal } from '@/types/Goal';
 
 interface ProjectTrackerProps {
-  goals: Goal[];
+  goals: ProjectGoal[];
 }
 
 export function ProjectTracker({ goals }: ProjectTrackerProps) {
   const [newTaskTitles, setNewTaskTitles] = useState<Record<string, string>>({});
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, Task[]>>({});
+  const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
   const { updateGoal } = useGoals();
+
+  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
+  useEffect(() => {
+    Object.keys(pendingUpdates).forEach(goalId => {
+      const goal = goals.find(g => g.id === goalId);
+      const pendingTasks = pendingUpdates[goalId];
+      
+      if (goal && pendingTasks && pendingOperations.size === 0) { // Only clear if no operations are pending
+        const projectGoal = goal as unknown as ProjectGoal;
+        const currentTasks = projectGoal.tasks || [];
+        
+        // Check if the current goal data matches our pending updates
+        const tasksMatch = pendingTasks.length === currentTasks.length && 
+          pendingTasks.every(pendingTask => 
+            currentTasks.some(currentTask => 
+              currentTask.id === pendingTask.id && 
+              currentTask.title === pendingTask.title &&
+              currentTask.completed === pendingTask.completed
+            )
+          );
+        
+        if (tasksMatch) {
+          setPendingUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[goalId];
+            return updated;
+          });
+        }
+      }
+    });
+  }, [goals, pendingUpdates, pendingOperations]);
 
   const getProjectProgress = (goal: Goal) => {
     const projectGoal = goal as unknown as ProjectGoal;
-    const tasks = projectGoal.tasks || [];
+    // Use pending updates as base if they exist, otherwise use goal data
+    const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
     const completedTasks = tasks.filter((task: Task) => task.completed).length;
     return {
       completed: completedTasks,
@@ -52,30 +74,77 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal || !newTaskTitle?.trim()) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    const tasks = projectGoal.tasks || [];
+    // Use pending updates as base if they exist, otherwise use goal data
+    const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
+    
+    // Find the first completed task to insert before it
+    const firstCompletedIndex = baseTasks.findIndex(task => task.completed);
+    const insertIndex = firstCompletedIndex === -1 ? baseTasks.length : firstCompletedIndex;
     
     const newTask: Task = {
       id: Date.now().toString(),
       title: newTaskTitle.trim(),
       completed: false,
-      order: tasks.length,
+      order: insertIndex,
     };
 
-    const updatedTasks = [...tasks, newTask];
+    // Insert the new task at the right position and reorder
+    const updatedTasks = [...baseTasks];
+    updatedTasks.splice(insertIndex, 0, newTask);
+    
+    // Reorder all tasks to have sequential order values
+    const reorderedTasks = updatedTasks.map((task, index) => ({
+      ...task,
+      order: index,
+    }));
+    
+    // Create unique operation ID
+    const operationId = `add-${goalId}-${Date.now()}`;
+    
+
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: reorderedTasks
+    }));
+
+    // Clear the input immediately for better UX
+    setNewTaskTitles(prev => ({
+      ...prev,
+      [goalId]: '',
+    }));
 
     try {
       await updateGoal(goalId, {
         ...goal,
-        tasks: updatedTasks,
+        tasks: reorderedTasks,
       });
-
-      // Clear the input
-      setNewTaskTitles(prev => ({
-        ...prev,
-        [goalId]: '',
-      }));
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
     } catch (error) {
       console.error('Error adding task:', error);
+      // Revert pending updates on error
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[goalId];
+        return updated;
+      });
+      // Restore the input text
+      setNewTaskTitles(prev => ({
+        ...prev,
+        [goalId]: newTaskTitle,
+      }));
     }
   };
 
@@ -84,8 +153,9 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    const tasks = projectGoal.tasks || [];
-    const updatedTasks = tasks.filter((task: Task) => task.id !== taskId);
+    // Use pending updates as base if they exist, otherwise use goal data
+    const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
+    const updatedTasks = baseTasks.filter((task: Task) => task.id !== taskId);
 
     // Reorder remaining tasks
     const reorderedTasks = updatedTasks.map((task: Task, index: number) => ({
@@ -93,13 +163,42 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       order: index,
     }));
 
+    // Create unique operation ID
+    const operationId = `remove-${goalId}-${taskId}-${Date.now()}`;
+    
+
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: reorderedTasks
+    }));
+
     try {
       await updateGoal(goalId, {
         ...goal,
         tasks: reorderedTasks,
       });
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
     } catch (error) {
       console.error('Error removing task:', error);
+      // Revert pending updates on error
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[goalId];
+        return updated;
+      });
     }
   };
 
@@ -108,8 +207,9 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    const tasks = projectGoal.tasks || [];
-    const updatedTasks = tasks.map((task: Task) => 
+    // Use pending updates as base if they exist, otherwise use goal data
+    const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
+    const updatedTasks = baseTasks.map((task: Task) => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
     );
 
@@ -119,7 +219,18 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       return a.completed ? 1 : -1;
     });
 
-    const xpChange = tasks.find((t: Task) => t.id === taskId)?.completed ? -10 : 10;
+    const xpChange = baseTasks.find((t: Task) => t.id === taskId)?.completed ? -10 : 10;
+
+    // Create unique operation ID
+    const operationId = `toggle-${goalId}-${taskId}-${Date.now()}`;
+    
+
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: sortedTasks
+    }));
 
     try {
       await updateGoal(goalId, {
@@ -127,15 +238,132 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         tasks: sortedTasks,
         xpEarned: goal.xpEarned + xpChange,
       });
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
     } catch (error) {
       console.error('Error updating task:', error);
+      // Revert pending updates on error
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[goalId];
+        return updated;
+      });
     }
   };
 
-  const TaskItem = ({ goal, task }: { goal: Goal; task: Task }) => {
+  const handleDeleteTask = (goalId: string, taskId: string, taskTitle: string) => {
+    Alert.alert(
+      'Delete Task',
+      `Are you sure you want to delete "${taskTitle}"?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => removeTask(goalId, taskId),
+        },
+      ],
+    );
+  };
+
+  const reorderTasks = async (goalId: string, fromIndex: number, toIndex: number) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    const projectGoal = goal as unknown as ProjectGoal;
+    // Use pending updates as base if they exist, otherwise use goal data
+    const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
+    
+    // Only allow reordering within incomplete tasks
+    const incompleteTasks = baseTasks.filter(task => !task.completed);
+    const completedTasks = baseTasks.filter(task => task.completed);
+    
+    // Don't allow reordering if trying to move outside incomplete tasks bounds
+    if (fromIndex >= incompleteTasks.length || toIndex >= incompleteTasks.length) {
+      return;
+    }
+    
+    // Create a copy and move the task within incomplete tasks
+    const reorderedIncompleteTasks = [...incompleteTasks];
+    const [movedTask] = reorderedIncompleteTasks.splice(fromIndex, 1);
+    reorderedIncompleteTasks.splice(toIndex, 0, movedTask);
+    
+    // Combine incomplete (reordered) and completed tasks
+    const allTasks = [...reorderedIncompleteTasks, ...completedTasks];
+    
+    // Reorder all tasks to have sequential order values
+    const reorderedTasks = allTasks.map((task, index) => ({
+      ...task,
+      order: index,
+    }));
+
+    // Create unique operation ID
+    const operationId = `reorder-${goalId}-${Date.now()}`;
+    
+
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: reorderedTasks
+    }));
+
+    try {
+      await updateGoal(goalId, {
+        ...goal,
+        tasks: reorderedTasks,
+      });
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+    } catch (error) {
+      console.error('Error reordering tasks:', error);
+      // Revert pending updates on error
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[goalId];
+        return updated;
+      });
+    }
+  };
+
+  const TaskItem = ({ goal, task, index, onReorder }: { 
+    goal: Goal; 
+    task: Task; 
+    index: number;
+    onReorder: (fromIndex: number, toIndex: number) => void;
+  }) => {
     const scale = useSharedValue(1);
     const xpOpacity = useSharedValue(0);
     const xpTranslateY = useSharedValue(0);
+    
+    // Get incomplete tasks for this goal (for reordering logic)
+    const projectGoal = goal as unknown as ProjectGoal;
+    const allTasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
+    const incompleteTasks = allTasks.filter(t => !t.completed);
+    const incompleteTaskIndex = incompleteTasks.findIndex(t => t.id === task.id);
 
     const animatedStyle = useAnimatedStyle(() => ({
       transform: [{ scale: scale.value }],
@@ -170,6 +398,27 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     return (
       <View style={styles.taskItemContainer}>
         <View style={styles.taskItem}>
+          {/* Reorder Buttons - Only show for incomplete tasks */}
+          <View style={styles.reorderButtons}>
+            {!task.completed && incompleteTaskIndex > 0 && (
+              <TouchableOpacity 
+                style={styles.reorderButton}
+                onPress={() => onReorder(incompleteTaskIndex, incompleteTaskIndex - 1)}
+              >
+                <ChevronUp size={14} color={Colors.gray500} />
+              </TouchableOpacity>
+            )}
+            {!task.completed && incompleteTaskIndex < incompleteTasks.length - 1 && incompleteTaskIndex >= 0 && (
+              <TouchableOpacity 
+                style={styles.reorderButton}
+                onPress={() => onReorder(incompleteTaskIndex, incompleteTaskIndex + 1)}
+              >
+                <ChevronDown size={14} color={Colors.gray500} />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Checkbox */}
           <TouchableOpacity onPress={handlePress} style={styles.taskCheckboxContainer}>
             <Animated.View style={[styles.taskCheckbox, animatedStyle]}>
               {task.completed ? (
@@ -179,17 +428,21 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
               )}
             </Animated.View>
           </TouchableOpacity>
+          
+          {/* Task Text */}
           <Text style={[
             styles.taskText,
             task.completed && styles.completedTaskText,
           ]}>
             {task.title}
           </Text>
+          
+          {/* Delete Button */}
           <TouchableOpacity 
             style={styles.removeTaskButton}
-            onPress={() => removeTask(goal.id, task.id)}
+            onPress={() => handleDeleteTask(goal.id, task.id, task.title)}
           >
-            <GripVertical size={16} color={Colors.gray300} />
+            <Trash2 size={16} color={Colors.gray400} />
           </TouchableOpacity>
         </View>
         
@@ -205,7 +458,8 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       {goals.map((goal) => {
         const projectGoal = goal as unknown as ProjectGoal;
         const progress = getProjectProgress(goal);
-        const tasks = projectGoal.tasks || [];
+        // Use pending updates as base if they exist, otherwise use goal data
+        const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
 
         return (
           <View key={goal.id} style={styles.projectCard}>
@@ -247,9 +501,7 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             </View>
 
             {/* Task list */}
-            <View style={styles.taskList}>
-              <Text style={styles.taskListTitle}>Tasks</Text>
-              
+            <View style={styles.taskList}>              
               {/* Add new task input */}
               <View style={styles.addTaskContainer}>
                 <TextInput
@@ -271,8 +523,14 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
               </View>
 
               {/* Task items */}
-              {tasks.map((task: Task) => (
-                <TaskItem key={task.id} goal={goal} task={task} />
+              {tasks.map((task: Task, index: number) => (
+                <TaskItem 
+                  key={task.id} 
+                  goal={goal} 
+                  task={task} 
+                  index={index}
+                  onReorder={(fromIndex, toIndex) => reorderTasks(goal.id, fromIndex, toIndex)}
+                />
               ))}
 
               {tasks.length === 0 && (
@@ -430,6 +688,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 4,
+  },
+  reorderButtons: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    width: 24,
+    marginRight: 8,
+  },
+  reorderButton: {
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   taskCheckboxContainer: {
     marginRight: 12,

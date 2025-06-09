@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { PiggyBank, Calendar, Flame, ChevronDown } from 'lucide-react-native';
 import Animated, { 
@@ -12,53 +12,62 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
-import { SavingGoal } from '@/types/Goal';
+import { SaveGoal, Goal } from '@/types/Goal';
 
-interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  category: 'habit' | 'project' | 'learning' | 'saving';
-  data: Record<string, any>;
-  xpEarned: number;
-  createdAt: string;
-  completedAt: string | null;
-  updatedAt: string;
-}
-
-interface SavingTrackerProps {
-  goals: Goal[];
+interface SaveTrackerProps {
+  goals: SaveGoal[];
 }
 
 const { width } = Dimensions.get('window');
 const dayWidth = (width - 64) / 7;
 
-export function SavingTracker({ goals }: SavingTrackerProps) {
+export function SaveTracker({ goals }: SaveTrackerProps) {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = current month
   const [showHistory, setShowHistory] = useState(false);
-  const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, { savingDates: string[], currentAmount: number, xpEarned: number }>>({});
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, { SaveDates: string[], currentAmount: number }>>({});
+  const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
   const { updateGoal } = useGoals();
 
-  const getOptimisticGoal = (goal: Goal) => {
-    const optimistic = optimisticUpdates[goal.id];
-    if (!optimistic) return goal;
-    
-    return {
-      ...goal,
-      data: {
-        ...goal.data,
-        savingDates: optimistic.savingDates,
-        currentAmount: optimistic.currentAmount,
-      },
-      xpEarned: optimistic.xpEarned,
-    };
-  };
+  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
+  useEffect(() => {
+    Object.keys(pendingUpdates).forEach(goalId => {
+      const goal = goals.find(g => g.id === goalId);
+      const pendingData = pendingUpdates[goalId];
+      
+      if (goal && pendingData && pendingOperations.size === 0) { // Only clear if no operations are pending
+        const saveGoal = goal as unknown as SaveGoal;
+        const currentSaveDates = saveGoal.SaveDates || [];
+        const currentAmount = saveGoal.currentAmount || 0;
+        
+        // Check if the current goal data matches our pending updates
+        const datesMatch = pendingData.SaveDates.length === currentSaveDates.length && 
+          pendingData.SaveDates.every(date => currentSaveDates.includes(date)) &&
+          currentSaveDates.every(date => pendingData.SaveDates.includes(date));
+        
+        const amountMatches = currentAmount === pendingData.currentAmount;
+        
+        if (datesMatch && amountMatches) {
+          setPendingUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[goalId];
+            return updated;
+          });
+        }
+      }
+    });
+  }, [goals, pendingUpdates, pendingOperations]);
 
   const getProgress = (goal: Goal) => {
-    const optimisticGoal = getOptimisticGoal(goal);
-    const savingGoal = optimisticGoal as unknown as SavingGoal;
-    const targetAmount = savingGoal.targetAmount || 0;
-    const currentAmount = savingGoal.currentAmount || 0;
+    const SaveGoal = goal as unknown as SaveGoal;
+    let targetAmount = SaveGoal.targetAmount || 0;
+    let currentAmount = SaveGoal.currentAmount || 0;
+    
+    // Use pending updates if available
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      currentAmount = pending.currentAmount;
+    }
+    
     return {
       current: currentAmount,
       target: targetAmount,
@@ -74,8 +83,8 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
   };
 
   const getTimeRemaining = (goal: Goal) => {
-    const savingGoal = goal as unknown as SavingGoal;
-    const targetDate = savingGoal.targetDate || savingGoal.deadline;
+    const SaveGoal = goal as unknown as SaveGoal;
+    const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
     if (!targetDate) return null;
     
     const targetDateObj = new Date(targetDate);
@@ -121,21 +130,33 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
   const { dates: monthDates, month: displayMonth } = getMonthDates(displayMonthOffset);
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  const isSavingCompletedOnDate = (goal: Goal, date: Date) => {
-    const optimisticGoal = getOptimisticGoal(goal);
-    const savingGoal = optimisticGoal as unknown as SavingGoal;
-    const savingDates = savingGoal.savingDates || [];
+  const isSaveCompletedOnDate = (goal: Goal, date: Date) => {
+    const SaveGoal = goal as unknown as SaveGoal;
+    let SaveDates = SaveGoal.SaveDates || [];
     const dateStr = date.toISOString().split('T')[0];
-    return savingDates.includes(dateStr);
+    
+    // Check if there's a pending update for this goal
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      SaveDates = pending.SaveDates;
+    }
+    
+    return SaveDates.includes(dateStr);
   };
 
   const getStreakCount = (goal: Goal) => {
-    const optimisticGoal = getOptimisticGoal(goal);
-    const savingGoal = optimisticGoal as unknown as SavingGoal;
-    const savingDates = savingGoal.savingDates || [];
-    if (savingDates.length === 0) return 0;
+    const SaveGoal = goal as unknown as SaveGoal;
+    let SaveDates = SaveGoal.SaveDates || [];
+    
+    // Use pending updates if available
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      SaveDates = pending.SaveDates;
+    }
+    
+    if (SaveDates.length === 0) return 0;
 
-    const sortedDates = savingDates.sort((a: string, b: string) => b.localeCompare(a));
+    const sortedDates = SaveDates.sort((a: string, b: string) => b.localeCompare(a));
     let streak = 0;
     let currentDate = new Date();
     
@@ -155,64 +176,72 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
     return streak;
   };
 
-  const toggleSavingDate = async (goalId: string, date: Date, amount: number = 5) => {
+  const toggleSaveDate = async (goalId: string, date: Date, amount: number = 5) => {
     const goal = goals.find(g => g.id === goalId);
     if (!goal) return;
 
-    const savingGoal = goal as unknown as SavingGoal;
-    const savingDates = savingGoal.savingDates || [];
+    const SaveGoal = goal as unknown as SaveGoal;
+    // Use pending updates as base if they exist, otherwise use goal data
+    const pendingData = pendingUpdates[goalId];
+    const baseSaveDates = pendingData ? pendingData.SaveDates : (SaveGoal.SaveDates || []);
+    const baseCurrentAmount = pendingData ? pendingData.currentAmount : (SaveGoal.currentAmount || 0);
     const dateStr = date.toISOString().split('T')[0];
-    const isCompleted = savingDates.includes(dateStr);
-
-    let newSavingDates;
-    let newCurrentAmount = savingGoal.currentAmount || 0;
+    const isCompleted = baseSaveDates.includes(dateStr);
+    
+    // Create unique operation ID
+    const operationId = `${goalId}-${dateStr}-${Date.now()}`;
+    
+    let newSaveDates;
+    let newCurrentAmount = baseCurrentAmount;
 
     if (isCompleted) {
-      // Unselect: remove date and subtract amount
-      newSavingDates = savingDates.filter((d: string) => d !== dateStr);
+      newSaveDates = baseSaveDates.filter((d: string) => d !== dateStr);
       newCurrentAmount -= amount;
     } else {
-      // Select: add date and add amount
-      newSavingDates = [...savingDates, dateStr];
+      newSaveDates = [...baseSaveDates, dateStr];
       newCurrentAmount += amount;
     }
+
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: {
+        SaveDates: newSaveDates,
+        currentAmount: Math.max(0, newCurrentAmount)
+      }
+    }));
 
     const xpChange = isCompleted ? -amount : amount;
     const newXpEarned = goal.xpEarned + xpChange;
 
-    // Immediate optimistic update
-    setOptimisticUpdates(prev => ({
-      ...prev,
-      [goalId]: {
-        savingDates: newSavingDates,
-        currentAmount: Math.max(0, newCurrentAmount),
-        xpEarned: newXpEarned,
-      }
-    }));
-
     try {
       await updateGoal(goalId, {
-        ...goal,
-        savingDates: newSavingDates,
+        SaveDates: newSaveDates,
         currentAmount: Math.max(0, newCurrentAmount),
         xpEarned: newXpEarned,
-      });
-
-      // Clear optimistic update after successful save
-      setOptimisticUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[goalId];
-        return newUpdates;
+      } as Partial<SaveGoal>);
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
       });
     } catch (error) {
-      console.error('Error updating saving:', error);
-      // Revert optimistic update on error
-      setOptimisticUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[goalId];
-        return newUpdates;
-      });
-    }
+        console.error('Error updating Save:', error);
+        // Revert pending updates on error
+        setPendingOperations(prev => {
+          const updated = new Set(prev);
+          updated.delete(operationId);
+          return updated;
+        });
+        setPendingUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
+      }
   };
 
   const getFlameIntensity = (streak: number) => {
@@ -242,7 +271,7 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
   };
 
   const DayTile = ({ goal, date }: { goal: Goal; date: Date }) => {
-    const isCompleted = isSavingCompletedOnDate(goal, date);
+    const isCompleted = isSaveCompletedOnDate(goal, date);
     const scale = useSharedValue(1);
     const xpOpacity = useSharedValue(0);
     const xpTranslateY = useSharedValue(0);
@@ -281,7 +310,7 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
         });
       }
 
-      runOnJS(toggleSavingDate)(goal.id, date, 5);
+      runOnJS(toggleSaveDate)(goal.id, date, 5);
     };
 
     return (
@@ -307,7 +336,8 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
               isCompleted && styles.completedDayNumber,
               isTodayDate && styles.todayDayNumber,
               !isCurrentMonthDate && styles.otherMonthDayNumber,
-              isFuture && styles.futureDayNumber
+              isFuture && styles.futureDayNumber,
+              isTodayDate && isCompleted && styles.todayCompletedDayNumber
             ]}>
               {date.getDate()}
             </Text>
@@ -355,8 +385,7 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {goals.map((goal) => {
-        const optimisticGoal = getOptimisticGoal(goal);
-        const savingGoal = optimisticGoal as unknown as SavingGoal;
+        const SaveGoal = goal as unknown as SaveGoal;
         const progress = getProgress(goal);
         const timeRemaining = getTimeRemaining(goal);
         const streak = getStreakCount(goal);
@@ -364,15 +393,15 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
         const availableMonths = getAvailableMonths(goal);
 
         return (
-          <View key={goal.id} style={styles.savingCard}>
-            {/* Header with saving icon, title and streak */}
+          <View key={goal.id} style={styles.SaveCard}>
+            {/* Header with Save icon, title and streak */}
             <View style={styles.header}>
               <View style={styles.titleContainer}>
                 <PiggyBank size={24} color={Colors.primary} />
                 <View style={styles.titleTextContainer}>
-                  <Text style={styles.savingTitle}>{goal.title}</Text>
+                  <Text style={styles.SaveTitle}>{goal.title}</Text>
                   {goal.description && (
-                    <Text style={styles.savingDescription}>{goal.description}</Text>
+                    <Text style={styles.SaveDescription}>{goal.description}</Text>
                   )}
                 </View>
               </View>
@@ -430,11 +459,11 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
                 ))}
               </View>
 
-              {/* Calendar grid */}
+                            {/* Calendar grid */}
               <View style={styles.monthGrid}>
                 {monthDates.map((date, index) => (
                   <DayTile
-                    key={date.toISOString()}
+                    key={`${goal.id}-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`}
                     goal={goal}
                     date={date}
                   />
@@ -495,7 +524,7 @@ export function SavingTracker({ goals }: SavingTrackerProps) {
             {/* Stats */}
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{optimisticGoal.xpEarned}</Text>
+                <Text style={styles.statValue}>{goal.xpEarned}</Text>
                 <Text style={styles.statLabel}>XP Earned</Text>
               </View>
               <View style={styles.statItem}>
@@ -521,7 +550,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  savingCard: {
+  SaveCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
@@ -548,13 +577,13 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
-  savingTitle: {
+  SaveTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: Colors.gray900,
     marginBottom: 4,
   },
-  savingDescription: {
+  SaveDescription: {
     fontSize: 14,
     color: Colors.gray600,
     lineHeight: 20,
@@ -710,6 +739,10 @@ const styles = StyleSheet.create({
   },
   futureDayNumber: {
     color: Colors.gray300,
+  },
+  todayCompletedDayNumber: {
+    color: '#FFD700', // Gold color
+    fontWeight: '700',
   },
   xpAnimation: {
     position: 'absolute',

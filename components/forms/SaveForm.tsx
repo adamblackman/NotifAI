@@ -5,14 +5,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/Colors';
-import { SavingGoal } from '@/types/Goal';
+import { SaveGoal } from '@/types/Goal';
 
-interface SavingFormProps {
-  onSubmit: (data: Partial<SavingGoal>) => void;
+interface SaveFormProps {
+  onSubmit: (data: Partial<SaveGoal>) => void;
   onCancel: () => void;
 }
 
-export function SavingForm({ onSubmit, onCancel }: SavingFormProps) {
+export function SaveForm({ onSubmit, onCancel }: SaveFormProps) {
   const [title, setTitle] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
@@ -46,8 +46,8 @@ export function SavingForm({ onSubmit, onCancel }: SavingFormProps) {
         currentAmount: 0,
         deadline,
         spendingTriggers,
-        savingDates: [],
-        category: 'saving',
+        SaveDates: [],
+        category: 'save',
       });
     }
   };
@@ -61,11 +61,11 @@ export function SavingForm({ onSubmit, onCancel }: SavingFormProps) {
         >
           <ArrowLeft size={24} color={Colors.gray700} />
         </TouchableOpacity>
-        <Text style={styles.title}>Create Saving Goal</Text>
+        <Text style={styles.title}>Create Save Goal</Text>
       </View>
       
       <Input
-        placeholder="Saving goal title"
+        placeholder="Save goal title"
         value={title}
         onChangeText={setTitle}
         style={styles.input}

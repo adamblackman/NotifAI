@@ -4,18 +4,26 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/Colors';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
 
   const handleAuth = async () => {
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim() || (isSignUp && !confirmPassword.trim())) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
@@ -57,9 +65,23 @@ export function AuthScreen() {
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!isPasswordVisible}
             style={styles.input}
+            icon={isPasswordVisible ? 'eye-off' : 'eye'}
+            onIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
           />
+          
+          {isSignUp && (
+            <Input
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!isConfirmPasswordVisible}
+              style={styles.input}
+              icon={isConfirmPasswordVisible ? 'eye-off' : 'eye'}
+              onIconPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+            />
+          )}
           
           <Button
             title={loading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
@@ -70,7 +92,13 @@ export function AuthScreen() {
           
           <Button
             title={isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            onPress={() => setIsSignUp(!isSignUp)}
+            onPress={() => {
+              setIsSignUp(!isSignUp);
+              setPassword('');
+              setConfirmPassword('');
+              setIsPasswordVisible(false);
+              setIsConfirmPasswordVisible(false);
+            }}
             variant="outline"
             style={styles.switchButton}
           />

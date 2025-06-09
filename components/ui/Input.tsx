@@ -1,26 +1,41 @@
 import React from 'react';
-import { TextInput, StyleSheet, TextInputProps } from 'react-native';
+import { View, TextInput, StyleSheet, TextInputProps, TouchableOpacity } from 'react-native';
 import { Colors } from '@/constants/Colors';
+import { Feather } from '@expo/vector-icons';
 
 interface InputProps extends TextInputProps {
   variant?: 'default' | 'large';
+  icon?: React.ComponentProps<typeof Feather>['name'];
+  onIconPress?: () => void;
 }
 
-export function Input({ variant = 'default', style, ...props }: InputProps) {
+export function Input({ variant = 'default', style, icon, onIconPress, ...props }: InputProps) {
   return (
-    <TextInput
-      style={[
-        styles.input,
-        variant === 'large' && styles.large,
-        style
-      ]}
-      placeholderTextColor={Colors.gray400}
-      {...props}
-    />
+    <View style={styles.container}>
+      <TextInput
+        style={[
+          styles.input,
+          variant === 'large' && styles.large,
+          icon ? styles.inputWithIcon : {},
+          style
+        ]}
+        placeholderTextColor={Colors.gray400}
+        {...props}
+      />
+      {icon && (
+        <TouchableOpacity onPress={onIconPress} style={styles.iconContainer}>
+          <Feather name={icon} size={18} color={Colors.gray400} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
   input: {
     borderWidth: 1.5,
     borderColor: Colors.gray200,
@@ -29,6 +44,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: Colors.white,
+  },
+  inputWithIcon: {
+    paddingRight: 45, // Make space for the icon
+  },
+  iconContainer: {
+    position: 'absolute',
+    right: 0,
+    top: -8,
+    paddingHorizontal: 12,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 0,
   },
   large: {
     paddingVertical: 16,

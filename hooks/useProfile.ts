@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { UserProfile, MedalType } from '@/types/Goal';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const calculateLevel = (xp: number): number => {
   // Exponential growth: level = floor(sqrt(xp / 100))
@@ -24,9 +24,20 @@ export function useProfile() {
     medals: {
       habit: [],
       project: [],
-      learning: [],
-      saving: [],
+      learn: [],
+      save: [],
     },
+  });
+  const [goalsXPBreakdown, setGoalsXPBreakdown] = useState<{
+    habit: number;
+    project: number;
+    learn: number;
+    save: number;
+  }>({
+    habit: 0,
+    project: 0,
+    learn: 0,
+    save: 0,
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -41,20 +52,49 @@ export function useProfile() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Fetch profile data
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Fetch all goals and sum up their XP
+      const { data: goalsData, error: goalsError } = await supabase
+        .from('goals')
+        .select('xp_earned, category')
+        .eq('user_id', user.id);
+
+      if (goalsError) throw goalsError;
+
+      // Calculate total XP from goals
+      const totalXP = goalsData.reduce((sum, goal) => sum + (goal.xp_earned || 0), 0);
+      const calculatedLevel = calculateLevel(totalXP);
+
+      // Calculate XP breakdown by category
+      const breakdown = {
+        habit: 0,
+        project: 0,
+        learn: 0,
+        save: 0,
+      };
+
+      goalsData.forEach((goal) => {
+        if (goal.category && goal.xp_earned) {
+          breakdown[goal.category as keyof typeof breakdown] += goal.xp_earned;
+        }
+      });
 
       setProfile({
-        id: data.id,
-        xp: data.xp,
-        level: data.level,
-        medals: data.medals,
+        id: profileData.id,
+        xp: totalXP,
+        level: calculatedLevel,
+        medals: profileData.medals,
       });
+
+      setGoalsXPBreakdown(breakdown);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -69,18 +109,8 @@ export function useProfile() {
       const newXP = profile.xp + amount;
       const newLevel = calculateLevel(newXP);
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          xp: newXP,
-          level: newLevel,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
+      // Note: We don't update the profile table's XP anymore since we calculate from goals
+      // The XP will be automatically updated when goals are modified
 
       setProfile(prev => ({
         ...prev,
@@ -114,11 +144,10 @@ export function useProfile() {
         const newXP = profile.xp + medalXP;
         const newLevel = calculateLevel(newXP);
 
+        // Update medals in profile table
         const { data, error } = await supabase
           .from('profiles')
           .update({
-            xp: newXP,
-            level: newLevel,
             medals: newMedals,
             updated_at: new Date().toISOString(),
           })
@@ -127,6 +156,18 @@ export function useProfile() {
           .single();
 
         if (error) throw error;
+
+        // Create a "medal bonus" goal to track this XP
+        await supabase
+          .from('goals')
+          .insert({
+            user_id: user.id,
+            title: `${medal.charAt(0).toUpperCase() + medal.slice(1)} Medal - ${category.charAt(0).toUpperCase() + category.slice(1)}`,
+            description: `Medal bonus for ${category} achievements`,
+            category: 'habit', // Default category for medal bonuses
+            xp_earned: medalXP,
+            completed_at: new Date().toISOString(),
+          });
 
         setProfile(prev => ({
           ...prev,
@@ -161,6 +202,7 @@ export function useProfile() {
   return {
     profile,
     loading,
+    goalsXPBreakdown,
     addXP,
     checkAndAwardMedals,
     getXPForNextLevel,

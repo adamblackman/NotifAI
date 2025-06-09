@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
-import { Award, Trophy } from 'lucide-react-native';
+import { Award, Trophy, Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
 import { useProfile } from '@/hooks/useProfile';
 import { Card } from '@/components/ui/Card';
@@ -13,8 +14,38 @@ const medalColors = {
   diamond: Colors.medal.diamond,
 };
 
+const categoryConfig = {
+  habit: {
+    icon: Repeat,
+    color: Colors.primary,
+    label: 'Habits',
+  },
+  project: {
+    icon: CheckSquare,
+    color: Colors.success,
+    label: 'Projects',
+  },
+  learn: {
+    icon: BookOpen,
+    color: Colors.warning,
+    label: 'Learn',
+  },
+  save: {
+    icon: PiggyBank,
+    color: Colors.error,
+    label: 'Save',
+  },
+};
+
 export default function ProfileScreen() {
-  const { profile, getLevelProgress, getXPForNextLevel } = useProfile();
+  const { profile, getLevelProgress, getXPForNextLevel, goalsXPBreakdown, refetch } = useProfile();
+
+  // Refresh profile data when tab is focused to get latest XP from goals
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const renderMedalShelf = (category: string, medals: string[]) => (
     <Card key={category} style={styles.medalCard}>
@@ -37,6 +68,36 @@ export default function ProfileScreen() {
             </View>
           );
         })}
+      </View>
+    </Card>
+  );
+
+  const renderXPBreakdown = () => (
+    <Card style={styles.xpBreakdownCard}>
+      <Text style={styles.sectionTitle}>XP Breakdown</Text>
+      <View style={styles.xpBreakdownContainer}>
+        {Object.entries(categoryConfig).map(([category, config]) => {
+          const Icon = config.icon;
+          const xp = goalsXPBreakdown[category as keyof typeof goalsXPBreakdown];
+          
+          if (xp === 0) return null;
+          
+          return (
+            <View key={category} style={styles.xpBreakdownItem}>
+              <View style={styles.xpBreakdownLeft}>
+                <View style={[styles.xpBreakdownIcon, { backgroundColor: `${config.color}15` }]}>
+                  <Icon size={16} color={config.color} />
+                </View>
+                <Text style={styles.xpBreakdownLabel}>{config.label}</Text>
+              </View>
+              <Text style={styles.xpBreakdownValue}>{xp.toLocaleString()} XP</Text>
+            </View>
+          );
+        })}
+        
+        {profile.xp === 0 && (
+          <Text style={styles.noXPText}>Complete goals to start earning XP!</Text>
+        )}
       </View>
     </Card>
   );
@@ -64,6 +125,8 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </Card>
+        
+        {renderXPBreakdown()}
         
         <View style={styles.medalsSection}>
           <Text style={styles.sectionTitle}>Medal Collection</Text>
@@ -122,6 +185,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.gray500,
     textAlign: 'right',
+  },
+  xpBreakdownCard: {
+    margin: 20,
+    marginTop: 0,
+  },
+  xpBreakdownContainer: {
+    gap: 12,
+  },
+  xpBreakdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  xpBreakdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  xpBreakdownIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  xpBreakdownLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gray700,
+  },
+  xpBreakdownValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray800,
+  },
+  noXPText: {
+    fontSize: 16,
+    color: Colors.gray500,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
   },
   medalsSection: {
     padding: 20,

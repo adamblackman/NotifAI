@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Repeat, Flame, Calendar, ChevronDown } from 'lucide-react-native';
 import Animated, { 
@@ -12,22 +12,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
-import { HabitGoal } from '@/types/Goal';
-
-interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  category: 'habit' | 'project' | 'learning' | 'saving';
-  data: Record<string, any>;
-  xpEarned: number;
-  createdAt: string;
-  completedAt: string | null;
-  updatedAt: string;
-}
+import { HabitGoal, Goal } from '@/types/Goal';
 
 interface HabitTrackerProps {
-  goals: Goal[];
+  goals: HabitGoal[];
 }
 
 const { width } = Dimensions.get('window');
@@ -36,19 +24,35 @@ const dayWidth = (width - 64) / 7;
 export function HabitTracker({ goals }: HabitTrackerProps) {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = current month
   const [showHistory, setShowHistory] = useState(false);
-  const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, { completedDates: string[], xpEarned: number }>>({});
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, string[]>>({});
+  const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
   const { updateGoal } = useGoals();
 
-  const getOptimisticGoal = (goal: Goal) => {
-    const optimistic = optimisticUpdates[goal.id];
-    if (!optimistic) return goal;
-    
-    return {
-      ...goal,
-      completedDates: optimistic.completedDates,
-      xpEarned: optimistic.xpEarned,
-    };
-  };
+  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
+  useEffect(() => {
+    Object.keys(pendingUpdates).forEach(goalId => {
+      const goal = goals.find(g => g.id === goalId);
+      const pendingDates = pendingUpdates[goalId];
+      
+      if (goal && pendingOperations.size === 0) { // Only clear if no operations are pending
+        const habitGoal = goal as unknown as HabitGoal;
+        const currentDates = habitGoal.completedDates || [];
+        
+        // Check if the current goal data matches our pending updates
+        const arraysMatch = pendingDates.length === currentDates.length && 
+          pendingDates.every(date => currentDates.includes(date)) &&
+          currentDates.every(date => pendingDates.includes(date));
+        
+        if (arraysMatch) {
+          setPendingUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[goalId];
+            return updated;
+          });
+        }
+      }
+    });
+  }, [goals, pendingUpdates, pendingOperations]);
 
   const getMonthDates = (monthOffset: number = 0) => {
     const today = new Date();
@@ -80,17 +84,31 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   const isHabitCompletedOnDate = (goal: Goal, date: Date) => {
-    const optimisticGoal = getOptimisticGoal(goal);
-    const habitGoal = optimisticGoal as unknown as HabitGoal;
+    const habitGoal = goal as unknown as HabitGoal;
     const completedDates = habitGoal.completedDates || [];
     const dateStr = date.toISOString().split('T')[0];
-    return completedDates.includes(dateStr);
+    
+    // Check if there's a pending update for this goal
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      const result = pending.includes(dateStr);
+      return result;
+    }
+    
+    const result = completedDates.includes(dateStr);
+    return result;
   };
 
   const getStreakCount = (goal: Goal) => {
-    const optimisticGoal = getOptimisticGoal(goal);
-    const habitGoal = optimisticGoal as unknown as HabitGoal;
-    const completedDates = habitGoal.completedDates || [];
+    const habitGoal = goal as unknown as HabitGoal;
+    let completedDates = habitGoal.completedDates || [];
+    
+    // Use pending updates if available
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      completedDates = pending;
+    }
+    
     if (completedDates.length === 0) return 0;
 
     const sortedDates = completedDates.sort((a: string, b: string) => b.localeCompare(a));
@@ -118,49 +136,58 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     if (!goal) return;
 
     const habitGoal = goal as unknown as HabitGoal;
-    const completedDates = habitGoal.completedDates || [];
+    // Use pending updates as base if they exist, otherwise use goal data
+    const baseDates = pendingUpdates[goalId] || habitGoal.completedDates || [];
     const dateStr = date.toISOString().split('T')[0];
-    const isCompleted = completedDates.includes(dateStr);
-
+    const isCompleted = baseDates.includes(dateStr);
+    
+    // Create unique operation ID
+    const operationId = `${goalId}-${dateStr}-${Date.now()}`;
+        
     let newCompletedDates;
     if (isCompleted) {
-      newCompletedDates = completedDates.filter((d: string) => d !== dateStr);
+      newCompletedDates = baseDates.filter((d: string) => d !== dateStr);
     } else {
-      newCompletedDates = [...completedDates, dateStr];
+      newCompletedDates = [...baseDates, dateStr];
     }
+    
+    // Track this operation and update local state for instant UI feedback
+    setPendingOperations(prev => new Set([...prev, operationId]));
+    setPendingUpdates(prev => {
+      const updated = {
+        ...prev,
+        [goalId]: newCompletedDates
+      };
+      return updated;
+    });
 
     const xpChange = isCompleted ? -10 : 10;
     const newXpEarned = goal.xpEarned + xpChange;
 
-    // Immediate optimistic update
-    setOptimisticUpdates(prev => ({
-      ...prev,
-      [goalId]: {
-        completedDates: newCompletedDates,
-        xpEarned: newXpEarned,
-      }
-    }));
-
     try {
       await updateGoal(goalId, {
-        ...goal,
         completedDates: newCompletedDates,
         xpEarned: newXpEarned,
       });
-
-      // Clear optimistic update after successful save
-      setOptimisticUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[goalId];
-        return newUpdates;
+      
+      // Remove this operation from pending
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
       });
     } catch (error) {
       console.error('Error updating habit:', error);
-      // Revert optimistic update on error
-      setOptimisticUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[goalId];
-        return newUpdates;
+      // Revert pending updates on error
+      setPendingOperations(prev => {
+        const updated = new Set(prev);
+        updated.delete(operationId);
+        return updated;
+      });
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[goalId];
+        return updated;
       });
     }
   };
@@ -210,16 +237,13 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     }));
 
     const handlePress = () => {
-      // Don't allow interaction with future dates or non-current month dates
       if (!isCurrentMonthDate || isFuture) return;
 
-      // Always animate the button press
       scale.value = withSequence(
         withSpring(0.9, { duration: 100 }),
         withSpring(1, { duration: 100 })
       );
 
-      // Only show XP popup when selecting (not unselecting)
       if (!isCompleted) {
         xpOpacity.value = withTiming(1, { duration: 200 });
         xpTranslateY.value = withTiming(-40, { 
@@ -257,7 +281,8 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
               isCompleted && styles.completedDayNumber,
               isTodayDate && styles.todayDayNumber,
               !isCurrentMonthDate && styles.otherMonthDayNumber,
-              isFuture && styles.futureDayNumber
+              isFuture && styles.futureDayNumber,
+              isTodayDate && isCompleted && styles.todayCompletedDayNumber
             ]}>
               {date.getDate()}
             </Text>
@@ -305,7 +330,6 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {goals.map((goal) => {
-        const optimisticGoal = getOptimisticGoal(goal);
         const streak = getStreakCount(goal);
         const flameProps = getFlameIntensity(streak);
         const availableMonths = getAvailableMonths(goal);
@@ -330,6 +354,38 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
               </View>
             </View>
 
+            {/* Progress bar for target days */}
+            {(goal as unknown as HabitGoal).targetDays && (
+              <View style={styles.progressSection}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressTitle}>Progress</Text>
+                  <Text style={styles.progressText}>
+                    {(() => {
+                      const habitGoal = goal as unknown as HabitGoal;
+                      const pending = pendingUpdates[goal.id];
+                      const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
+                      return `${completedCount} / ${habitGoal.targetDays} days`;
+                    })()}
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBar,
+                      { 
+                        width: `${(() => {
+                          const habitGoal = goal as unknown as HabitGoal;
+                          const pending = pendingUpdates[goal.id];
+                          const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
+                          return Math.min(100, (completedCount / habitGoal.targetDays!) * 100);
+                        })()}%` 
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+            )}
+
             {/* Monthly calendar */}
             <View style={styles.calendarSection}>
               <View style={styles.calendarHeader}>
@@ -349,7 +405,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
               <View style={styles.monthGrid}>
                 {monthDates.map((date, index) => (
                   <DayTile
-                    key={date.toISOString()}
+                    key={`${goal.id}-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`}
                     goal={goal}
                     date={date}
                   />
@@ -410,12 +466,16 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
             {/* Stats */}
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{optimisticGoal.xpEarned}</Text>
+                <Text style={styles.statValue}>{goal.xpEarned}</Text>
                 <Text style={styles.statLabel}>XP Earned</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {(optimisticGoal as unknown as HabitGoal).completedDates?.length || 0}
+                  {(() => {
+                    const habitGoal = goal as unknown as HabitGoal;
+                    const pending = pendingUpdates[goal.id];
+                    return pending ? pending.length : (habitGoal.completedDates?.length || 0);
+                  })()}
                 </Text>
                 <Text style={styles.statLabel}>Total Days</Text>
               </View>
@@ -574,6 +634,10 @@ const styles = StyleSheet.create({
   futureDayNumber: {
     color: Colors.gray300,
   },
+  todayCompletedDayNumber: {
+    color: '#FFD700', // Gold color
+    fontWeight: '700',
+  },
   xpAnimation: {
     position: 'absolute',
     top: -10,
@@ -634,6 +698,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-around',
     paddingTop: 20,
     borderTopWidth: 1,
@@ -641,6 +706,8 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
+    minWidth: '22%',
+    marginBottom: 8,
   },
   statValue: {
     fontSize: 20,
@@ -653,5 +720,34 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textTransform: 'uppercase',
     fontWeight: '600',
+  },
+  progressSection: {
+    marginBottom: 20,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gray800,
+  },
+  progressText: {
+    fontSize: 14,
+    color: Colors.gray600,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: Colors.gray200,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
   },
 });

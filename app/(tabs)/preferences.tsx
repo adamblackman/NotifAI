@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { Picker } from '@react-native-picker/picker';
 import { Colors } from '@/constants/Colors';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const personalityOptions = [
+  { label: 'Serious', value: 'serious' },
+  { label: 'Friendly', value: 'friendly' },
+  { label: 'Motivating', value: 'motivating' },
+  { label: 'Funny', value: 'funny' },
+];
+
 export default function PreferencesScreen() {
   const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays } = usePreferences();
+  const { signOut } = useAuth();
   const [startTime, setStartTime] = useState(preferences.notificationWindow.start);
   const [endTime, setEndTime] = useState(preferences.notificationWindow.end);
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -37,11 +46,52 @@ export default function PreferencesScreen() {
     updateNotificationDays(newDays);
   };
 
+  const handlePersonalitySelect = (value: string) => {
+    updatePersonality(value as 'serious' | 'friendly' | 'motivating' | 'funny');
+    setDropdownOpen(false);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('Error logging out:', error);
+              Alert.alert('Error', 'Failed to log out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getCurrentPersonalityLabel = () => {
+    const option = personalityOptions.find(opt => opt.value === preferences.personality);
+    return option ? option.label : 'Select personality';
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <View style={styles.header}>
-          <Text style={styles.title}>Preferences</Text>
+          <Text style={styles.title}>Settings</Text>
         </View>
         
         <Card style={styles.section}>
@@ -82,7 +132,6 @@ export default function PreferencesScreen() {
               onValueChange={handleStartTimeChange}
               minimumTrackTintColor={Colors.primary}
               maximumTrackTintColor={Colors.gray200}
-              thumbStyle={{ backgroundColor: Colors.primary }}
             />
           </View>
           
@@ -97,7 +146,6 @@ export default function PreferencesScreen() {
               onValueChange={handleEndTimeChange}
               minimumTrackTintColor={Colors.primary}
               maximumTrackTintColor={Colors.gray200}
-              thumbStyle={{ backgroundColor: Colors.primary }}
             />
           </View>
         </Card>
@@ -108,19 +156,46 @@ export default function PreferencesScreen() {
             Choose how your AI companion communicates with you
           </Text>
           
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={preferences.personality}
-              onValueChange={updatePersonality}
-              style={styles.picker}
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setDropdownOpen(!dropdownOpen)}
             >
-              <Picker.Item label="Serious" value="serious" />
-              <Picker.Item label="Friendly" value="friendly" />
-              <Picker.Item label="Motivating" value="motivating" />
-              <Picker.Item label="Funny" value="funny" />
-            </Picker>
+              <Text style={styles.dropdownButtonText}>{getCurrentPersonalityLabel()}</Text>
+              <Text style={styles.dropdownArrow}>{dropdownOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            
+            {dropdownOpen && (
+              <View style={styles.dropdownList}>
+                {personalityOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.dropdownItem,
+                      preferences.personality === option.value && styles.dropdownItemSelected
+                    ]}
+                    onPress={() => handlePersonalitySelect(option.value)}
+                  >
+                    <Text style={[
+                      styles.dropdownItemText,
+                      preferences.personality === option.value && styles.dropdownItemTextSelected
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         </Card>
+
+        <Card style={styles.logoutSection}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Log Out</Text>
+          </TouchableOpacity>
+        </Card>
+        
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -203,14 +278,90 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 40,
   },
-  pickerContainer: {
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 9999,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 2,
     borderColor: Colors.primary,
     borderRadius: 20,
     backgroundColor: Colors.white,
-    overflow: 'hidden',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
   },
-  picker: {
-    height: 50,
+  dropdownButtonText: {
+    fontSize: 16,
+    color: Colors.gray800,
+    fontWeight: '500',
+  },
+  dropdownArrow: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: 'bold',
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: '98%',
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.white,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 10000,
+  },
+  dropdownItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray200,
+  },
+  dropdownItemSelected: {
+    backgroundColor: Colors.primary + '10',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: Colors.gray800,
+  },
+  dropdownItemTextSelected: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  logoutButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+  bottomPadding: {
+    height: 100,
+  },
+  logoutSection: {
+    margin: 20,
+    zIndex: -1,
   },
 });

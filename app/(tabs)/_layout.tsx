@@ -1,3 +1,4 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Chrome as Home, User, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
@@ -16,7 +17,7 @@ export default function TabLayout() {
           paddingBottom: 12,
           height: 70,
           position: 'absolute',
-          bottom: 0,
+          bottom: 20,
         },
         tabBarLabelStyle: {
           fontSize: 12,

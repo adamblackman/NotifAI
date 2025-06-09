@@ -22,13 +22,13 @@ const categoryConfig = {
     icon: CheckSquare,
     color: Colors.success,
   },
-  learning: {
-    title: 'Learning',
+  learn: {
+    title: 'Learn',
     icon: BookOpen,
     color: Colors.warning,
   },
-  saving: {
-    title: 'Saving',
+  save: {
+    title: 'Save',
     icon: PiggyBank,
     color: Colors.error,
   },

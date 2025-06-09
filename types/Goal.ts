@@ -1,4 +1,4 @@
-export type GoalCategory = 'habit' | 'project' | 'learning' | 'saving';
+export type GoalCategory = 'habit' | 'project' | 'learn' | 'save';
 
 export interface BaseGoal {
   id: string;
@@ -16,6 +16,7 @@ export interface HabitGoal extends BaseGoal {
   streak?: number;
   completions?: { [date: string]: boolean };
   completedDates?: string[]; // Array of completed dates
+  targetDays?: number; // Target number of days to complete the habit
 }
 
 export interface ProjectGoal extends BaseGoal {
@@ -25,8 +26,8 @@ export interface ProjectGoal extends BaseGoal {
   progress?: number; // 0-100
 }
 
-export interface LearningGoal extends BaseGoal {
-  category: 'learning';
+export interface LearnGoal extends BaseGoal {
+  category: 'learn';
   curriculumItems?: CurriculumItem[];
   progress?: number; // 0-100
   targetHours?: number;
@@ -34,18 +35,18 @@ export interface LearningGoal extends BaseGoal {
   sessions?: any[];
 }
 
-export interface SavingGoal extends BaseGoal {
-  category: 'saving';
+export interface SaveGoal extends BaseGoal {
+  category: 'save';
   targetAmount?: number;
   currentAmount?: number;
   deadline?: Date;
   targetDate?: Date; // Alternative name for deadline
   spendingTriggers?: string[];
   contributions?: any[];
-  savingDates?: string[]; // Array of dates when saving was done
+  SaveDates?: string[]; // Array of dates when Save was done
 }
 
-export type Goal = HabitGoal | ProjectGoal | LearningGoal | SavingGoal;
+export type Goal = HabitGoal | ProjectGoal | LearnGoal | SaveGoal;
 
 export interface Task {
   id: string;
@@ -70,8 +71,8 @@ export interface UserProfile {
   medals: {
     habit: MedalType[];
     project: MedalType[];
-    learning: MedalType[];
-    saving: MedalType[];
+    learn: MedalType[];
+    save: MedalType[];
   };
 }
 

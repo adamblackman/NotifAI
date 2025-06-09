@@ -7,8 +7,8 @@ import { useGoals } from '@/hooks/useGoals';
 import { CategoryPicker } from '@/components/goals/CategoryPicker';
 import { HabitForm } from '@/components/forms/HabitForm';
 import { ProjectForm } from '@/components/forms/ProjectForm';
-import { LearningForm } from '@/components/forms/LearningForm';
-import { SavingForm } from '@/components/forms/SavingForm';
+import { LearnForm } from '@/components/forms/LearnForm';
+import { SaveForm } from '@/components/forms/SaveForm';
 
 export default function CreateGoalScreen() {
   const [selectedCategory, setSelectedCategory] = useState<GoalCategory | null>(null);
@@ -43,10 +43,10 @@ export default function CreateGoalScreen() {
         return <HabitForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
       case 'project':
         return <ProjectForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
-      case 'learning':
-        return <LearningForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
-      case 'saving':
-        return <SavingForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
+      case 'learn':
+        return <LearnForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
+      case 'save':
+        return <SaveForm onSubmit={handleFormSubmit} onCancel={handleCancel} />;
       default:
         return null;
     }

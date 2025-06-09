@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Goal, GoalCategory } from '@/types/Goal';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useGoals() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -62,6 +62,8 @@ export function useGoals() {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      // Remove optimistic update from here - let components handle their own optimistic UI
+
       // First, fetch the current goal to get existing data
       const { data: currentGoal, error: fetchError } = await supabase
         .from('goals')
@@ -105,11 +107,15 @@ export function useGoals() {
 
       if (error) throw error;
 
+      // Update with the actual data from Supabase to ensure consistency
       const updatedGoal = transformGoalFromDB(data);
+      
       setGoals(prev => prev.map(goal => goal.id === id ? updatedGoal : goal));
       return updatedGoal;
     } catch (error) {
       console.error('Error updating goal:', error);
+      // Revert the optimistic update on error by refetching
+      fetchGoals();
       throw error;
     }
   };

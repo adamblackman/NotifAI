@@ -18,6 +18,7 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [frequency, setFrequency] = useState<boolean[]>(new Array(7).fill(true));
+  const [targetDays, setTargetDays] = useState('30');
 
   const toggleDay = (index: number) => {
     const newFrequency = [...frequency];
@@ -34,6 +35,7 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
         streak: 0,
         completions: {},
         completedDates: [],
+        targetDays: parseInt(targetDays) || 30,
         category: 'habit',
       });
     }
@@ -65,6 +67,14 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
         multiline
         numberOfLines={3}
         style={[styles.input, styles.textArea]}
+      />
+      
+      <Input
+        placeholder="Target days (e.g., 30)"
+        value={targetDays}
+        onChangeText={setTargetDays}
+        keyboardType="numeric"
+        style={styles.input}
       />
       
       <Text style={styles.sectionTitle}>Frequency</Text>

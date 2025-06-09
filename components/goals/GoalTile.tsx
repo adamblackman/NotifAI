@@ -7,7 +7,7 @@ interface Goal {
   id: string;
   title: string;
   description: string;
-  category: 'habit' | 'project' | 'learning' | 'saving';
+  category: 'habit' | 'project' | 'learn' | 'save';
   data: Record<string, any>;
   xpEarned: number;
   createdAt: string;
@@ -31,20 +31,27 @@ const categoryConfig = {
     color: Colors.success,
     label: 'Project',
   },
-  learning: {
+  learn: {
     icon: BookOpen,
     color: Colors.warning,
-    label: 'Learning',
+    label: 'Learn',
   },
-  saving: {
+  save: {
     icon: PiggyBank,
     color: Colors.error,
-    label: 'Saving',
+    label: 'Save',
   },
 };
 
 export function GoalTile({ goal, onPress }: GoalTileProps) {
   const config = categoryConfig[goal.category];
+  
+  // Add defensive check for undefined config
+  if (!config) {
+    console.warn(`Unknown goal category: ${goal.category}. Available categories:`, Object.keys(categoryConfig));
+    return null;
+  }
+  
   const Icon = config.icon;
 
   return (
@@ -62,12 +69,6 @@ export function GoalTile({ goal, onPress }: GoalTileProps) {
           </View>
           <Text style={styles.xpText}>{goal.xpEarned} XP</Text>
         </View>
-        
-        {goal.description && (
-          <Text style={styles.description} numberOfLines={2}>
-            {goal.description}
-          </Text>
-        )}
       </View>
     </TouchableOpacity>
   );

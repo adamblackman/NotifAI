@@ -15,7 +15,7 @@
       - `user_id` (uuid, references profiles)
       - `title` (text)
       - `description` (text)
-      - `category` (enum: habit, project, learning, saving)
+      - `category` (enum: habit, project, Learn, Save)
       - `data` (jsonb, stores category-specific data)
       - `xp_earned` (integer, default 0)
       - `created_at` (timestamp)
@@ -38,7 +38,7 @@
 */
 
 -- Create custom types
-CREATE TYPE goal_category AS ENUM ('habit', 'project', 'learning', 'saving');
+CREATE TYPE goal_category AS ENUM ('habit', 'project', 'learn', 'save');
 CREATE TYPE personality_type AS ENUM ('serious', 'friendly', 'motivating', 'funny');
 
 -- Create profiles table
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   xp integer DEFAULT 0 NOT NULL,
   level integer DEFAULT 1 NOT NULL,
-  medals jsonb DEFAULT '{"habit": [], "project": [], "learning": [], "saving": []}' NOT NULL,
+  medals jsonb DEFAULT '{"habit": [], "project": [], "learn": [], "save": []}' NOT NULL,
   created_at timestamptz DEFAULT now() NOT NULL,
   updated_at timestamptz DEFAULT now() NOT NULL
 );

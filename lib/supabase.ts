@@ -1,9 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = 'https://uhnvncqogcfgkdhlvmzq.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobnZuY3FvZ2NmZ2tkaGx2bXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4MjE3NDAsImV4cCI6MjA2NDM5Nzc0MH0.rYRstoYB-yfg9N8SxmZPaSGQg9lA4iCkGEF6raoQ2CQ';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
 
 // Database types
 export interface Database {
@@ -40,7 +48,7 @@ export interface Database {
           user_id: string;
           title: string;
           description: string;
-          category: 'habit' | 'project' | 'learning' | 'saving';
+          category: 'habit' | 'project' | 'learn' | 'save';
           data: Record<string, any>;
           xp_earned: number;
           created_at: string;
@@ -52,7 +60,7 @@ export interface Database {
           user_id: string;
           title: string;
           description?: string;
-          category: 'habit' | 'project' | 'learning' | 'saving';
+          category: 'habit' | 'project' | 'learn' | 'save';
           data?: Record<string, any>;
           xp_earned?: number;
           created_at?: string;
@@ -64,7 +72,7 @@ export interface Database {
           user_id?: string;
           title?: string;
           description?: string;
-          category?: 'habit' | 'project' | 'learning' | 'saving';
+          category?: 'habit' | 'project' | 'learn' | 'save';
           data?: Record<string, any>;
           xp_earned?: number;
           completed_at?: string | null;

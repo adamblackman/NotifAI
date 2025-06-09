@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
+import { HabitGoal, ProjectGoal, LearnGoal, SaveGoal } from '@/types/Goal';
 import { HabitTracker } from '@/components/tracking/HabitTracker';
 import { ProjectTracker } from '@/components/tracking/ProjectTracker';
-import { LearningTracker } from '@/components/tracking/LearningTracker';
-import { SavingTracker } from '@/components/tracking/SavingTracker';
+import { LearnTracker } from '@/components/tracking/LearnTracker';
+import { SaveTracker } from '@/components/tracking/SaveTracker';
 
 export default function TrackingScreen() {
   const { category, goalId } = useLocalSearchParams<{ category: string; goalId?: string }>();
@@ -24,8 +26,8 @@ export default function TrackingScreen() {
     switch (category) {
       case 'habit': return 'Habits';
       case 'project': return 'Projects';
-      case 'learning': return 'Learning';
-      case 'saving': return 'Saving';
+      case 'learn': return 'Learn';
+      case 'save': return 'Save';
       default: return 'Goals';
     }
   };
@@ -41,34 +43,37 @@ export default function TrackingScreen() {
 
     switch (category) {
       case 'habit':
-        return <HabitTracker goals={displayGoals} />;
+        return <HabitTracker goals={displayGoals as HabitGoal[]} />;
       case 'project':
-        return <ProjectTracker goals={displayGoals} />;
-      case 'learning':
-        return <LearningTracker goals={displayGoals} />;
-      case 'saving':
-        return <SavingTracker goals={displayGoals} />;
+        return <ProjectTracker goals={displayGoals as ProjectGoal[]} />;
+      case 'learn':
+        return <LearnTracker goals={displayGoals as LearnGoal[]} />;
+      case 'save':
+        return <SaveTracker goals={displayGoals as SaveGoal[]} />;
       default:
         return null;
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={24} color={Colors.gray700} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{getCategoryTitle()}</Text>
-      </View>
-      
-      <View style={styles.content}>
-        {renderTracker()}
-      </View>
-    </SafeAreaView>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color={Colors.gray700} />
+          </TouchableOpacity>
+          <Text style={styles.title}>{getCategoryTitle()}</Text>
+        </View>
+        
+        <View style={styles.content}>
+          {renderTracker()}
+        </View>
+      </SafeAreaView>
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Preferences } from '@/types/Goal';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function usePreferences() {
   const [preferences, setPreferences] = useState<Preferences>({

@@ -4,14 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 const calculateLevel = (xp: number): number => {
-  // Exponential growth: level = floor(sqrt(xp / 100))
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 };
 
 const getMedalForCompletions = (completions: number): MedalType | null => {
-  if (completions >= 50) return 'diamond';
-  if (completions >= 10) return 'gold';
-  if (completions >= 5) return 'silver';
+  if (completions >= 100) return 'diamond';
+  if (completions >= 50) return 'gold';
+  if (completions >= 10) return 'silver';
   if (completions >= 1) return 'bronze';
   return null;
 };
@@ -52,7 +51,6 @@ export function useProfile() {
     if (!user) return;
 
     try {
-      // Fetch profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -61,7 +59,6 @@ export function useProfile() {
 
       if (profileError) throw profileError;
 
-      // Fetch all goals and sum up their XP
       const { data: goalsData, error: goalsError } = await supabase
         .from('goals')
         .select('xp_earned, category')
@@ -69,11 +66,9 @@ export function useProfile() {
 
       if (goalsError) throw goalsError;
 
-      // Calculate total XP from goals
       const totalXP = goalsData.reduce((sum, goal) => sum + (goal.xp_earned || 0), 0);
       const calculatedLevel = calculateLevel(totalXP);
 
-      // Calculate XP breakdown by category
       const breakdown = {
         habit: 0,
         project: 0,
@@ -109,9 +104,6 @@ export function useProfile() {
       const newXP = profile.xp + amount;
       const newLevel = calculateLevel(newXP);
 
-      // Note: We don't update the profile table's XP anymore since we calculate from goals
-      // The XP will be automatically updated when goals are modified
-
       setProfile(prev => ({
         ...prev,
         xp: newXP,
@@ -144,7 +136,6 @@ export function useProfile() {
         const newXP = profile.xp + medalXP;
         const newLevel = calculateLevel(newXP);
 
-        // Update medals in profile table
         const { data, error } = await supabase
           .from('profiles')
           .update({
@@ -157,14 +148,13 @@ export function useProfile() {
 
         if (error) throw error;
 
-        // Create a "medal bonus" goal to track this XP
         await supabase
           .from('goals')
           .insert({
             user_id: user.id,
             title: `${medal.charAt(0).toUpperCase() + medal.slice(1)} Medal - ${category.charAt(0).toUpperCase() + category.slice(1)}`,
             description: `Medal bonus for ${category} achievements`,
-            category: 'habit', // Default category for medal bonuses
+            category: 'habit',
             xp_earned: medalXP,
             completed_at: new Date().toISOString(),
           });

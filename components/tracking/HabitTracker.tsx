@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { Repeat, Flame, Calendar, ChevronDown } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { Repeat, Flame, Calendar, ChevronDown, Trash2 } from 'lucide-react-native';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -12,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
+import { useProfile } from '@/hooks/useProfile';
 import { HabitGoal, Goal } from '@/types/Goal';
 
 interface HabitTrackerProps {
@@ -22,23 +24,22 @@ const { width } = Dimensions.get('window');
 const dayWidth = (width - 64) / 7;
 
 export function HabitTracker({ goals }: HabitTrackerProps) {
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = current month
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, string[]>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const { updateGoal } = useGoals();
+  const { updateGoal, deleteGoal } = useGoals();
+  const { addXP, checkAndAwardMedals } = useProfile();
 
-  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
       const goal = goals.find(g => g.id === goalId);
       const pendingDates = pendingUpdates[goalId];
       
-      if (goal && pendingOperations.size === 0) { // Only clear if no operations are pending
+      if (goal && pendingOperations.size === 0) {
         const habitGoal = goal as unknown as HabitGoal;
         const currentDates = habitGoal.completedDates || [];
         
-        // Check if the current goal data matches our pending updates
         const arraysMatch = pendingDates.length === currentDates.length && 
           pendingDates.every(date => currentDates.includes(date)) &&
           currentDates.every(date => pendingDates.includes(date));
@@ -61,14 +62,12 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     const year = targetMonth.getFullYear();
     const month = targetMonth.getMonth();
     
-    // Get first day of month and adjust to start on Monday
     const firstDay = new Date(year, month, 1);
     const startDate = new Date(firstDay);
     const dayOfWeek = firstDay.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     startDate.setDate(firstDay.getDate() + mondayOffset);
     
-    // Generate 6 weeks (42 days) to cover the full month view
     const dates = [];
     for (let i = 0; i < 42; i++) {
       const date = new Date(startDate);
@@ -88,22 +87,18 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     const completedDates = habitGoal.completedDates || [];
     const dateStr = date.toISOString().split('T')[0];
     
-    // Check if there's a pending update for this goal
     const pending = pendingUpdates[goal.id];
     if (pending) {
-      const result = pending.includes(dateStr);
-      return result;
+      return pending.includes(dateStr);
     }
     
-    const result = completedDates.includes(dateStr);
-    return result;
+    return completedDates.includes(dateStr);
   };
 
   const getStreakCount = (goal: Goal) => {
     const habitGoal = goal as unknown as HabitGoal;
     let completedDates = habitGoal.completedDates || [];
     
-    // Use pending updates if available
     const pending = pendingUpdates[goal.id];
     if (pending) {
       completedDates = pending;
@@ -131,17 +126,20 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     return streak;
   };
 
+  const calculateStreakXP = (streak: number) => {
+    if (streak === 0) return 1;
+    return Math.max(1, Math.floor(Math.log2(streak + 1)));
+  };
+
   const toggleHabitDate = async (goalId: string, date: Date) => {
     const goal = goals.find(g => g.id === goalId);
     if (!goal) return;
 
     const habitGoal = goal as unknown as HabitGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseDates = pendingUpdates[goalId] || habitGoal.completedDates || [];
     const dateStr = date.toISOString().split('T')[0];
     const isCompleted = baseDates.includes(dateStr);
     
-    // Create unique operation ID
     const operationId = `${goalId}-${dateStr}-${Date.now()}`;
         
     let newCompletedDates;
@@ -151,17 +149,16 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       newCompletedDates = [...baseDates, dateStr];
     }
     
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
-    setPendingUpdates(prev => {
-      const updated = {
-        ...prev,
-        [goalId]: newCompletedDates
-      };
-      return updated;
-    });
+    setPendingUpdates(prev => ({
+      ...prev,
+      [goalId]: newCompletedDates
+    }));
 
-    const xpChange = isCompleted ? -10 : 10;
+    // Calculate streak and XP
+    const currentStreak = getStreakCount({ ...goal, completedDates: newCompletedDates } as Goal);
+    const xpGained = calculateStreakXP(currentStreak);
+    const xpChange = isCompleted ? -xpGained : xpGained;
     const newXpEarned = goal.xpEarned + xpChange;
 
     try {
@@ -170,7 +167,14 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
         xpEarned: newXpEarned,
       });
       
-      // Remove this operation from pending
+      // Add XP to user profile
+      await addXP(xpChange);
+      
+      // Check for achievements
+      if (!isCompleted) {
+        await checkAndAwardMedals('habit', newCompletedDates.length);
+      }
+      
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -178,7 +182,6 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       });
     } catch (error) {
       console.error('Error updating habit:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -190,6 +193,32 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
         return updated;
       });
     }
+  };
+
+  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
+    Alert.alert(
+      'Delete Goal',
+      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGoal(goalId);
+              router.back();
+            } catch (error) {
+              console.error('Error deleting goal:', error);
+              Alert.alert('Error', 'Failed to delete goal. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getFlameIntensity = (streak: number) => {
@@ -212,7 +241,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
 
   const isFutureDate = (date: Date) => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day
+    today.setHours(0, 0, 0, 0);
     const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);
     return compareDate > today;
@@ -245,6 +274,9 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       );
 
       if (!isCompleted) {
+        const currentStreak = getStreakCount(goal);
+        const xpGained = calculateStreakXP(currentStreak + 1);
+        
         xpOpacity.value = withTiming(1, { duration: 200 });
         xpTranslateY.value = withTiming(-40, { 
           duration: 1000, 
@@ -290,7 +322,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
         </TouchableOpacity>
         
         <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+10 XP</Text>
+          <Text style={styles.xpText}>+{calculateStreakXP(getStreakCount(goal) + 1)} XP</Text>
         </Animated.View>
       </View>
     );
@@ -305,15 +337,13 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     const today = new Date();
     const months = [];
     
-    // Start from the month the goal was created
     let currentMonth = new Date(goalCreatedAt.getFullYear(), goalCreatedAt.getMonth(), 1);
     
-    // Go up to the current month
     while (currentMonth <= today) {
       const monthsFromNow = (currentMonth.getFullYear() - today.getFullYear()) * 12 + 
                            (currentMonth.getMonth() - today.getMonth());
       
-      if (monthsFromNow < 0) { // Only past months
+      if (monthsFromNow < 0) {
         months.push({
           offset: monthsFromNow,
           name: getMonthName(currentMonth),
@@ -324,170 +354,175 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       currentMonth.setMonth(currentMonth.getMonth() + 1);
     }
     
-    return months.reverse(); // Most recent first
+    return months.reverse();
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {goals.map((goal) => {
-        const streak = getStreakCount(goal);
-        const flameProps = getFlameIntensity(streak);
-        const availableMonths = getAvailableMonths(goal);
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Habits</Text>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
+        >
+          <Trash2 size={24} color={Colors.error} />
+        </TouchableOpacity>
+      </View>
 
-        return (
-          <View key={goal.id} style={styles.habitCard}>
-            {/* Header with habit icon, title and streak */}
-            <View style={styles.header}>
-              <View style={styles.titleContainer}>
-                <Repeat size={24} color={Colors.primary} />
-                <View style={styles.titleTextContainer}>
-                  <Text style={styles.habitTitle}>{goal.title}</Text>
-                  {goal.description && (
-                    <Text style={styles.habitDescription}>{goal.description}</Text>
-                  )}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {goals.map((goal) => {
+          const streak = getStreakCount(goal);
+          const flameProps = getFlameIntensity(streak);
+          const availableMonths = getAvailableMonths(goal);
+
+          return (
+            <View key={goal.id} style={styles.habitCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.titleContainer}>
+                  <Repeat size={24} color={Colors.primary} />
+                  <View style={styles.titleTextContainer}>
+                    <Text style={styles.habitTitle}>{goal.title}</Text>
+                    {goal.description && (
+                      <Text style={styles.habitDescription}>{goal.description}</Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.streakContainer}>
+                  <Flame size={flameProps.size} color={flameProps.color} />
+                  <Text style={styles.streakNumber}>{streak}</Text>
+                  <Text style={styles.streakLabel}>day streak</Text>
                 </View>
               </View>
-              <View style={styles.streakContainer}>
-                <Flame size={flameProps.size} color={flameProps.color} />
-                <Text style={styles.streakNumber}>{streak}</Text>
-                <Text style={styles.streakLabel}>day streak</Text>
-              </View>
-            </View>
 
-            {/* Progress bar for target days */}
-            {(goal as unknown as HabitGoal).targetDays && (
-              <View style={styles.progressSection}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressTitle}>Progress</Text>
-                  <Text style={styles.progressText}>
+              {(goal as unknown as HabitGoal).targetDays && (
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressTitle}>Progress</Text>
+                    <Text style={styles.progressText}>
+                      {(() => {
+                        const habitGoal = goal as unknown as HabitGoal;
+                        const pending = pendingUpdates[goal.id];
+                        const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
+                        return `${completedCount} / ${habitGoal.targetDays} days`;
+                      })()}
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarContainer}>
+                    <View 
+                      style={[
+                        styles.progressBar,
+                        { 
+                          width: `${(() => {
+                            const habitGoal = goal as unknown as HabitGoal;
+                            const pending = pendingUpdates[goal.id];
+                            const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
+                            return Math.min(100, (completedCount / habitGoal.targetDays!) * 100);
+                          })()}%` 
+                        }
+                      ]} 
+                    />
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.calendarSection}>
+                <View style={styles.calendarHeader}>
+                  <Text style={styles.monthTitle}>
+                    {getMonthName(displayMonth)}
+                  </Text>
+                </View>
+
+                <View style={styles.dayHeaders}>
+                  {dayNames.map((day) => (
+                    <Text key={day} style={styles.dayHeader}>{day}</Text>
+                  ))}
+                </View>
+
+                <View style={styles.monthGrid}>
+                  {monthDates.map((date, index) => (
+                    <DayTile
+                      key={`${goal.id}-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`}
+                      goal={goal}
+                      date={date}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {availableMonths.length > 0 && (
+                <View style={styles.historySection}>
+                  <TouchableOpacity 
+                    style={styles.historyHeader}
+                    onPress={() => setShowHistory(!showHistory)}
+                  >
+                    <Text style={styles.historyTitle}>History</Text>
+                    <ChevronDown 
+                      size={16} 
+                      color={Colors.gray500} 
+                      style={[
+                        styles.historyChevron,
+                        showHistory && styles.historyChevronRotated
+                      ]}
+                    />
+                  </TouchableOpacity>
+
+                  {showHistory && (
+                    <View style={styles.historyList}>
+                      {availableMonths.map((monthData) => (
+                        <TouchableOpacity
+                          key={monthData.offset}
+                          style={styles.historyItem}
+                          onPress={() => {
+                            setSelectedMonth(monthData.offset);
+                            setShowHistory(false);
+                          }}
+                        >
+                          <Text style={styles.historyItemText}>{monthData.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {selectedMonth !== null && (
+                        <TouchableOpacity
+                          style={styles.historyItem}
+                          onPress={() => {
+                            setSelectedMonth(null);
+                            setShowHistory(false);
+                          }}
+                        >
+                          <Text style={[styles.historyItemText, styles.currentMonthText]}>
+                            Current Month
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{goal.xpEarned}</Text>
+                  <Text style={styles.statLabel}>XP Earned</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>
                     {(() => {
                       const habitGoal = goal as unknown as HabitGoal;
                       const pending = pendingUpdates[goal.id];
-                      const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
-                      return `${completedCount} / ${habitGoal.targetDays} days`;
+                      return pending ? pending.length : (habitGoal.completedDates?.length || 0);
                     })()}
                   </Text>
+                  <Text style={styles.statLabel}>Total Days</Text>
                 </View>
-                <View style={styles.progressBarContainer}>
-                  <View 
-                    style={[
-                      styles.progressBar,
-                      { 
-                        width: `${(() => {
-                          const habitGoal = goal as unknown as HabitGoal;
-                          const pending = pendingUpdates[goal.id];
-                          const completedCount = pending ? pending.length : (habitGoal.completedDates?.length || 0);
-                          return Math.min(100, (completedCount / habitGoal.targetDays!) * 100);
-                        })()}%` 
-                      }
-                    ]} 
-                  />
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{streak}</Text>
+                  <Text style={styles.statLabel}>Current Streak</Text>
                 </View>
               </View>
-            )}
-
-            {/* Monthly calendar */}
-            <View style={styles.calendarSection}>
-              <View style={styles.calendarHeader}>
-                <Text style={styles.monthTitle}>
-                  {getMonthName(displayMonth)}
-                </Text>
-              </View>
-
-              {/* Day headers */}
-              <View style={styles.dayHeaders}>
-                {dayNames.map((day) => (
-                  <Text key={day} style={styles.dayHeader}>{day}</Text>
-                ))}
-              </View>
-
-              {/* Calendar grid */}
-              <View style={styles.monthGrid}>
-                {monthDates.map((date, index) => (
-                  <DayTile
-                    key={`${goal.id}-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`}
-                    goal={goal}
-                    date={date}
-                  />
-                ))}
-              </View>
             </View>
-
-            {/* History section - only show if there are available months */}
-            {availableMonths.length > 0 && (
-              <View style={styles.historySection}>
-                <TouchableOpacity 
-                  style={styles.historyHeader}
-                  onPress={() => setShowHistory(!showHistory)}
-                >
-                  <Text style={styles.historyTitle}>History</Text>
-                  <ChevronDown 
-                    size={16} 
-                    color={Colors.gray500} 
-                    style={[
-                      styles.historyChevron,
-                      showHistory && styles.historyChevronRotated
-                    ]}
-                  />
-                </TouchableOpacity>
-
-                {showHistory && (
-                  <View style={styles.historyList}>
-                    {availableMonths.map((monthData) => (
-                      <TouchableOpacity
-                        key={monthData.offset}
-                        style={styles.historyItem}
-                        onPress={() => {
-                          setSelectedMonth(monthData.offset);
-                          setShowHistory(false);
-                        }}
-                      >
-                        <Text style={styles.historyItemText}>{monthData.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {selectedMonth !== null && (
-                      <TouchableOpacity
-                        style={styles.historyItem}
-                        onPress={() => {
-                          setSelectedMonth(null);
-                          setShowHistory(false);
-                        }}
-                      >
-                        <Text style={[styles.historyItemText, styles.currentMonthText]}>
-                          Current Month
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{goal.xpEarned}</Text>
-                <Text style={styles.statLabel}>XP Earned</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {(() => {
-                    const habitGoal = goal as unknown as HabitGoal;
-                    const pending = pendingUpdates[goal.id];
-                    return pending ? pending.length : (habitGoal.completedDates?.length || 0);
-                  })()}
-                </Text>
-                <Text style={styles.statLabel}>Total Days</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{streak}</Text>
-                <Text style={styles.statLabel}>Best Streak</Text>
-              </View>
-            </View>
-          </View>
-        );
-      })}
-    </ScrollView>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -495,6 +530,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.gray800,
+  },
+  deleteButton: {
+    padding: 8,
   },
   habitCard: {
     backgroundColor: Colors.white,
@@ -507,7 +556,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  header: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -635,7 +684,7 @@ const styles = StyleSheet.create({
     color: Colors.gray300,
   },
   todayCompletedDayNumber: {
-    color: '#FFD700', // Gold color
+    color: '#FFD700',
     fontWeight: '700',
   },
   xpAnimation: {

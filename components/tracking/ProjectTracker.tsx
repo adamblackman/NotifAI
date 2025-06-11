@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -12,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
+import { useProfile } from '@/hooks/useProfile';
 import { ProjectGoal, Task, Goal } from '@/types/Goal';
 
 interface ProjectTrackerProps {
@@ -22,19 +24,18 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
   const [newTaskTitles, setNewTaskTitles] = useState<Record<string, string>>({});
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, Task[]>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const { updateGoal } = useGoals();
+  const { updateGoal, deleteGoal } = useGoals();
+  const { addXP, checkAndAwardMedals } = useProfile();
 
-  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
       const goal = goals.find(g => g.id === goalId);
       const pendingTasks = pendingUpdates[goalId];
       
-      if (goal && pendingTasks && pendingOperations.size === 0) { // Only clear if no operations are pending
+      if (goal && pendingTasks && pendingOperations.size === 0) {
         const projectGoal = goal as unknown as ProjectGoal;
         const currentTasks = projectGoal.tasks || [];
         
-        // Check if the current goal data matches our pending updates
         const tasksMatch = pendingTasks.length === currentTasks.length && 
           pendingTasks.every(pendingTask => 
             currentTasks.some(currentTask => 
@@ -57,7 +58,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
 
   const getProjectProgress = (goal: Goal) => {
     const projectGoal = goal as unknown as ProjectGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
     const completedTasks = tasks.filter((task: Task) => task.completed).length;
     return {
@@ -74,10 +74,8 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal || !newTaskTitle?.trim()) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
     
-    // Find the first completed task to insert before it
     const firstCompletedIndex = baseTasks.findIndex(task => task.completed);
     const insertIndex = firstCompletedIndex === -1 ? baseTasks.length : firstCompletedIndex;
     
@@ -88,28 +86,22 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       order: insertIndex,
     };
 
-    // Insert the new task at the right position and reorder
     const updatedTasks = [...baseTasks];
     updatedTasks.splice(insertIndex, 0, newTask);
     
-    // Reorder all tasks to have sequential order values
     const reorderedTasks = updatedTasks.map((task, index) => ({
       ...task,
       order: index,
     }));
     
-    // Create unique operation ID
     const operationId = `add-${goalId}-${Date.now()}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
       [goalId]: reorderedTasks
     }));
 
-    // Clear the input immediately for better UX
     setNewTaskTitles(prev => ({
       ...prev,
       [goalId]: '',
@@ -121,7 +113,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         tasks: reorderedTasks,
       });
       
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -129,7 +120,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       });
     } catch (error) {
       console.error('Error adding task:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -140,7 +130,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         delete updated[goalId];
         return updated;
       });
-      // Restore the input text
       setNewTaskTitles(prev => ({
         ...prev,
         [goalId]: newTaskTitle,
@@ -153,21 +142,16 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
     const updatedTasks = baseTasks.filter((task: Task) => task.id !== taskId);
 
-    // Reorder remaining tasks
     const reorderedTasks = updatedTasks.map((task: Task, index: number) => ({
       ...task,
       order: index,
     }));
 
-    // Create unique operation ID
     const operationId = `remove-${goalId}-${taskId}-${Date.now()}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -180,7 +164,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         tasks: reorderedTasks,
       });
       
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -188,7 +171,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       });
     } catch (error) {
       console.error('Error removing task:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -207,25 +189,21 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     if (!goal) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
     const updatedTasks = baseTasks.map((task: Task) => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
     );
 
-    // Sort tasks: incomplete first, completed last
     const sortedTasks = updatedTasks.sort((a: Task, b: Task) => {
       if (a.completed === b.completed) return a.order - b.order;
       return a.completed ? 1 : -1;
     });
 
-    const xpChange = baseTasks.find((t: Task) => t.id === taskId)?.completed ? -10 : 10;
+    const wasCompleted = baseTasks.find((t: Task) => t.id === taskId)?.completed;
+    const xpChange = wasCompleted ? -5 : 5;
 
-    // Create unique operation ID
     const operationId = `toggle-${goalId}-${taskId}-${Date.now()}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -239,7 +217,15 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         xpEarned: goal.xpEarned + xpChange,
       });
       
-      // Remove this operation from pending
+      // Add XP to user profile
+      await addXP(xpChange);
+      
+      // Check for achievements
+      if (!wasCompleted) {
+        const completedCount = updatedTasks.filter(task => task.completed).length;
+        await checkAndAwardMedals('project', completedCount);
+      }
+      
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -247,7 +233,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       });
     } catch (error) {
       console.error('Error updating task:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -279,42 +264,59 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     );
   };
 
+  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
+    Alert.alert(
+      'Delete Goal',
+      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGoal(goalId);
+              router.back();
+            } catch (error) {
+              console.error('Error deleting goal:', error);
+              Alert.alert('Error', 'Failed to delete goal. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const reorderTasks = async (goalId: string, fromIndex: number, toIndex: number) => {
     const goal = goals.find(g => g.id === goalId);
     if (!goal) return;
 
     const projectGoal = goal as unknown as ProjectGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseTasks = pendingUpdates[goalId] || projectGoal.tasks || [];
     
-    // Only allow reordering within incomplete tasks
     const incompleteTasks = baseTasks.filter(task => !task.completed);
     const completedTasks = baseTasks.filter(task => task.completed);
     
-    // Don't allow reordering if trying to move outside incomplete tasks bounds
     if (fromIndex >= incompleteTasks.length || toIndex >= incompleteTasks.length) {
       return;
     }
     
-    // Create a copy and move the task within incomplete tasks
     const reorderedIncompleteTasks = [...incompleteTasks];
     const [movedTask] = reorderedIncompleteTasks.splice(fromIndex, 1);
     reorderedIncompleteTasks.splice(toIndex, 0, movedTask);
     
-    // Combine incomplete (reordered) and completed tasks
     const allTasks = [...reorderedIncompleteTasks, ...completedTasks];
     
-    // Reorder all tasks to have sequential order values
     const reorderedTasks = allTasks.map((task, index) => ({
       ...task,
       order: index,
     }));
 
-    // Create unique operation ID
     const operationId = `reorder-${goalId}-${Date.now()}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -327,7 +329,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         tasks: reorderedTasks,
       });
       
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -335,7 +336,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       });
     } catch (error) {
       console.error('Error reordering tasks:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -359,7 +359,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     const xpOpacity = useSharedValue(0);
     const xpTranslateY = useSharedValue(0);
     
-    // Get incomplete tasks for this goal (for reordering logic)
     const projectGoal = goal as unknown as ProjectGoal;
     const allTasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
     const incompleteTasks = allTasks.filter(t => !t.completed);
@@ -381,7 +380,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       );
 
       if (!task.completed) {
-        // Show XP animation
         xpOpacity.value = withTiming(1, { duration: 200 });
         xpTranslateY.value = withTiming(-30, { 
           duration: 800, 
@@ -398,7 +396,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     return (
       <View style={styles.taskItemContainer}>
         <View style={styles.taskItem}>
-          {/* Reorder Buttons - Only show for incomplete tasks */}
           <View style={styles.reorderButtons}>
             {!task.completed && incompleteTaskIndex > 0 && (
               <TouchableOpacity 
@@ -418,7 +415,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             )}
           </View>
           
-          {/* Checkbox */}
           <TouchableOpacity onPress={handlePress} style={styles.taskCheckboxContainer}>
             <Animated.View style={[styles.taskCheckbox, animatedStyle]}>
               {task.completed ? (
@@ -429,7 +425,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             </Animated.View>
           </TouchableOpacity>
           
-          {/* Task Text */}
           <Text style={[
             styles.taskText,
             task.completed && styles.completedTaskText,
@@ -437,7 +432,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             {task.title}
           </Text>
           
-          {/* Delete Button */}
           <TouchableOpacity 
             style={styles.removeTaskButton}
             onPress={() => handleDeleteTask(goal.id, task.id, task.title)}
@@ -447,120 +441,125 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         </View>
         
         <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+10 XP</Text>
+          <Text style={styles.xpText}>+5 XP</Text>
         </Animated.View>
       </View>
     );
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {goals.map((goal) => {
-        const projectGoal = goal as unknown as ProjectGoal;
-        const progress = getProjectProgress(goal);
-        // Use pending updates as base if they exist, otherwise use goal data
-        const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Projects</Text>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
+        >
+          <Trash2 size={24} color={Colors.error} />
+        </TouchableOpacity>
+      </View>
 
-        return (
-          <View key={goal.id} style={styles.projectCard}>
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.titleContainer}>
-                <CheckSquare size={24} color={Colors.primary} />
-                <View style={styles.titleTextContainer}>
-                  <Text style={styles.projectTitle}>{goal.title}</Text>
-                  {goal.description && (
-                    <Text style={styles.projectDescription}>{goal.description}</Text>
-                  )}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {goals.map((goal) => {
+          const projectGoal = goal as unknown as ProjectGoal;
+          const progress = getProjectProgress(goal);
+          const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
+
+          return (
+            <View key={goal.id} style={styles.projectCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.titleContainer}>
+                  <CheckSquare size={24} color={Colors.primary} />
+                  <View style={styles.titleTextContainer}>
+                    <Text style={styles.projectTitle}>{goal.title}</Text>
+                    {goal.description && (
+                      <Text style={styles.projectDescription}>{goal.description}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
-            </View>
 
-            {/* Large progress bar */}
-            <View style={styles.progressSection}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressLabel}>Project Progress</Text>
-                <Text style={styles.progressText}>
-                  {progress.completed} of {progress.total} tasks completed
-                </Text>
-              </View>
-              
-              <View style={styles.progressBarContainer}>
-                <View style={styles.progressBar}>
-                  <Animated.View 
-                    style={[
-                      styles.progressFill,
-                      { width: `${progress.percentage}%` }
-                    ]} 
-                  />
-                </View>
-                <Text style={styles.percentageText}>
-                  {Math.round(progress.percentage)}%
-                </Text>
-              </View>
-            </View>
-
-            {/* Task list */}
-            <View style={styles.taskList}>              
-              {/* Add new task input */}
-              <View style={styles.addTaskContainer}>
-                <TextInput
-                  style={styles.addTaskInput}
-                  placeholder="Add new task..."
-                  value={newTaskTitles[goal.id] || ''}
-                  onChangeText={(text) => setNewTaskTitles(prev => ({
-                    ...prev,
-                    [goal.id]: text,
-                  }))}
-                  onSubmitEditing={() => addTask(goal.id)}
-                />
-                <TouchableOpacity 
-                  style={styles.addButton} 
-                  onPress={() => addTask(goal.id)}
-                >
-                  <Plus size={20} color={Colors.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Task items */}
-              {tasks.map((task: Task, index: number) => (
-                <TaskItem 
-                  key={task.id} 
-                  goal={goal} 
-                  task={task} 
-                  index={index}
-                  onReorder={(fromIndex, toIndex) => reorderTasks(goal.id, fromIndex, toIndex)}
-                />
-              ))}
-
-              {tasks.length === 0 && (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>
-                    No tasks added yet. Add your first task above!
+              <View style={styles.progressSection}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>Project Progress</Text>
+                  <Text style={styles.progressText}>
+                    {progress.completed} of {progress.total} tasks completed
                   </Text>
                 </View>
-              )}
-            </View>
+                
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBar}>
+                    <Animated.View 
+                      style={[
+                        styles.progressFill,
+                        { width: `${progress.percentage}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.percentageText}>
+                    {Math.round(progress.percentage)}%
+                  </Text>
+                </View>
+              </View>
 
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{goal.xpEarned}</Text>
-                <Text style={styles.statLabel}>XP Earned</Text>
+              <View style={styles.taskList}>              
+                <View style={styles.addTaskContainer}>
+                  <TextInput
+                    style={styles.addTaskInput}
+                    placeholder="Add new task..."
+                    value={newTaskTitles[goal.id] || ''}
+                    onChangeText={(text) => setNewTaskTitles(prev => ({
+                      ...prev,
+                      [goal.id]: text,
+                    }))}
+                    onSubmitEditing={() => addTask(goal.id)}
+                  />
+                  <TouchableOpacity 
+                    style={styles.addButton} 
+                    onPress={() => addTask(goal.id)}
+                  >
+                    <Plus size={20} color={Colors.primary} />
+                  </TouchableOpacity>
+                </View>
+
+                {tasks.map((task: Task, index: number) => (
+                  <TaskItem 
+                    key={task.id} 
+                    goal={goal} 
+                    task={task} 
+                    index={index}
+                    onReorder={(fromIndex, toIndex) => reorderTasks(goal.id, fromIndex, toIndex)}
+                  />
+                ))}
+
+                {tasks.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>
+                      No tasks added yet. Add your first task above!
+                    </Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{progress.completed}</Text>
-                <Text style={styles.statLabel}>Completed</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{progress.total - progress.completed}</Text>
-                <Text style={styles.statLabel}>Remaining</Text>
+
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{goal.xpEarned}</Text>
+                  <Text style={styles.statLabel}>XP Earned</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{progress.completed}</Text>
+                  <Text style={styles.statLabel}>Completed</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{progress.total - progress.completed}</Text>
+                  <Text style={styles.statLabel}>Remaining</Text>
+                </View>
               </View>
             </View>
-          </View>
-        );
-      })}
-    </ScrollView>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -568,6 +567,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.gray800,
+  },
+  deleteButton: {
+    padding: 8,
   },
   projectCard: {
     backgroundColor: Colors.white,
@@ -580,7 +593,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  header: {
+  cardHeader: {
     marginBottom: 20,
   },
   titleContainer: {
@@ -646,12 +659,6 @@ const styles = StyleSheet.create({
   },
   taskList: {
     marginBottom: 20,
-  },
-  taskListTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.gray800,
-    marginBottom: 16,
   },
   addTaskContainer: {
     flexDirection: 'row',

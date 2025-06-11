@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput, Alert } from 'react-native';
 import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -12,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
+import { useProfile } from '@/hooks/useProfile';
 import { LearnGoal, CurriculumItem, Goal } from '@/types/Goal';
 
 interface LearnTrackerProps {
@@ -25,19 +27,18 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
   const [newItemTitles, setNewItemTitles] = useState<Record<string, string>>({});
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, CurriculumItem[]>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const { updateGoal } = useGoals();
+  const { updateGoal, deleteGoal } = useGoals();
+  const { addXP, checkAndAwardMedals } = useProfile();
 
-  // Clear pending updates when the goals data is updated to match pending state AND no operations are pending
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
       const goal = goals.find(g => g.id === goalId);
       const pendingItems = pendingUpdates[goalId];
       
-      if (goal && pendingItems && pendingOperations.size === 0) { // Only clear if no operations are pending
+      if (goal && pendingItems && pendingOperations.size === 0) {
         const learnGoal = goal as unknown as LearnGoal;
         const currentItems = learnGoal.curriculumItems || [];
         
-        // Check if the current goal data matches our pending updates
         const itemsMatch = pendingItems.length === currentItems.length && 
           pendingItems.every(pendingItem => 
             currentItems.some(currentItem => 
@@ -59,7 +60,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
   }, [goals, pendingUpdates, pendingOperations]);
 
   const getProgress = (goal: LearnGoal) => {
-    // Use pending updates as base if they exist, otherwise use goal data
     const curriculumItems = pendingUpdates[goal.id] || goal.curriculumItems || [];
     const completedItems = curriculumItems.filter((item: CurriculumItem) => item.completed).length;
     return {
@@ -87,6 +87,32 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     );
   };
 
+  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
+    Alert.alert(
+      'Delete Goal',
+      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGoal(goalId);
+              router.back();
+            } catch (error) {
+              console.error('Error deleting goal:', error);
+              Alert.alert('Error', 'Failed to delete goal. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const addCurriculumItem = async (goalId: string) => {
     const goal = goals.find(g => g.id === goalId);
     const newItemTitle = newItemTitles[goalId];
@@ -94,10 +120,8 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     if (!goal || !newItemTitle?.trim()) return;
 
     const learnGoal = goal as unknown as LearnGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseItems = pendingUpdates[goalId] || learnGoal.curriculumItems || [];
     
-    // Find the first completed item to insert before it
     const firstCompletedIndex = baseItems.findIndex(item => item.completed);
     const insertIndex = firstCompletedIndex === -1 ? baseItems.length : firstCompletedIndex;
     
@@ -108,28 +132,22 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       order: insertIndex,
     };
 
-    // Insert the new item at the right position and reorder
     const updatedItems = [...baseItems];
     updatedItems.splice(insertIndex, 0, newItem);
     
-    // Reorder all items to have sequential order values
     const reorderedItems = updatedItems.map((item, index) => ({
       ...item,
       order: index,
     }));
     
-    // Create unique operation ID
     const operationId = `add-${goalId}-${Date.now()}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
       [goalId]: reorderedItems
     }));
 
-    // Clear the input immediately for better UX
     setNewItemTitles(prev => ({
       ...prev,
       [goalId]: '',
@@ -141,7 +159,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         curriculumItems: reorderedItems,
       });
       
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -149,7 +166,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       });
     } catch (error) {
       console.error('Error adding curriculum item:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -160,7 +176,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         delete updated[goalId];
         return updated;
       });
-      // Restore the input text
       setNewItemTitles(prev => ({
         ...prev,
         [goalId]: newItemTitle,
@@ -173,21 +188,16 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     if (!goal) return;
 
     const learnGoal = goal as unknown as LearnGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseItems = pendingUpdates[goalId] || learnGoal.curriculumItems || [];
     const updatedItems = baseItems.filter((item: CurriculumItem) => item.id !== itemId);
 
-    // Reorder remaining items
     const reorderedItems = updatedItems.map((item: CurriculumItem, index: number) => ({
       ...item,
       order: index,
     }));
 
-    // Create unique operation ID
     const operationId = `remove-${goalId}-${itemId}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -200,7 +210,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         curriculumItems: reorderedItems,
       });
       
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -208,7 +217,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       });
     } catch (error) {
       console.error('Error removing curriculum item:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -227,20 +235,16 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     if (!goal) return;
 
     const learnGoal = goal as unknown as LearnGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseItems = pendingUpdates[goalId] || learnGoal.curriculumItems || [];
     const updatedItems = baseItems.map((item: CurriculumItem) => 
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
 
     const wasCompleted = baseItems.find((item: CurriculumItem) => item.id === itemId)?.completed;
-    const xpChange = wasCompleted ? -25 : 25;
+    const xpChange = wasCompleted ? -5 : 5;
 
-    // Create unique operation ID
     const operationId = `toggle-${goalId}-${itemId}`;
-    
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -254,21 +258,27 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         xpEarned: goal.xpEarned + xpChange,
       });
 
-      // Remove this operation from pending
+      // Add XP to user profile
+      await addXP(xpChange);
+      
+      // Check for achievements
+      if (!wasCompleted) {
+        const completedCount = updatedItems.filter(item => item.completed).length;
+        await checkAndAwardMedals('learn', completedCount);
+      }
+
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
         return updated;
       });
 
-      // Check if this completion triggers a level up
       if (!wasCompleted && (goal.xpEarned + xpChange) % 100 === 0) {
         setShowLevelUp(true);
         setTimeout(() => setShowLevelUp(false), 3000);
       }
     } catch (error) {
       console.error('Error updating curriculum item:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -287,34 +297,27 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     if (!goal) return;
 
     const learnGoal = goal as unknown as LearnGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseItems = pendingUpdates[goalId] || learnGoal.curriculumItems || [];
     
-    // Only allow reordering within incomplete items
     const incompleteItems = baseItems.filter(item => !item.completed);
     const currentItemIndex = incompleteItems.findIndex(item => item.id === itemId);
     
-    if (currentItemIndex <= 0) return; // Can't move up if already at top
+    if (currentItemIndex <= 0) return;
     
-    // Swap with the item above in incomplete items
     const newIncompleteItems = [...incompleteItems];
     [newIncompleteItems[currentItemIndex], newIncompleteItems[currentItemIndex - 1]] = 
     [newIncompleteItems[currentItemIndex - 1], newIncompleteItems[currentItemIndex]];
     
-    // Combine with completed items (which stay at the end)
     const completedItems = baseItems.filter(item => item.completed);
     const updatedItems = [...newIncompleteItems, ...completedItems];
     
-    // Reorder all items to have sequential order values
     const reorderedItems = updatedItems.map((item, index) => ({
       ...item,
       order: index,
     }));
 
-    // Create unique operation ID
     const operationId = `move-up-${goalId}-${itemId}`;
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -327,7 +330,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         curriculumItems: reorderedItems,
       });
 
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -335,7 +337,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       });
     } catch (error) {
       console.error('Error moving item up:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -354,34 +355,27 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     if (!goal) return;
 
     const learnGoal = goal as unknown as LearnGoal;
-    // Use pending updates as base if they exist, otherwise use goal data
     const baseItems = pendingUpdates[goalId] || learnGoal.curriculumItems || [];
     
-    // Only allow reordering within incomplete items
     const incompleteItems = baseItems.filter(item => !item.completed);
     const currentItemIndex = incompleteItems.findIndex(item => item.id === itemId);
     
-    if (currentItemIndex === -1 || currentItemIndex >= incompleteItems.length - 1) return; // Can't move down if already at bottom of incomplete items
+    if (currentItemIndex === -1 || currentItemIndex >= incompleteItems.length - 1) return;
     
-    // Swap with the item below in incomplete items
     const newIncompleteItems = [...incompleteItems];
     [newIncompleteItems[currentItemIndex], newIncompleteItems[currentItemIndex + 1]] = 
     [newIncompleteItems[currentItemIndex + 1], newIncompleteItems[currentItemIndex]];
     
-    // Combine with completed items (which stay at the end)
     const completedItems = baseItems.filter(item => item.completed);
     const updatedItems = [...newIncompleteItems, ...completedItems];
     
-    // Reorder all items to have sequential order values
     const reorderedItems = updatedItems.map((item, index) => ({
       ...item,
       order: index,
     }));
 
-    // Create unique operation ID
     const operationId = `move-down-${goalId}-${itemId}`;
 
-    // Track this operation and update local state for instant UI feedback
     setPendingOperations(prev => new Set([...prev, operationId]));
     setPendingUpdates(prev => ({
       ...prev,
@@ -394,7 +388,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         curriculumItems: reorderedItems,
       });
 
-      // Remove this operation from pending
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -402,7 +395,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       });
     } catch (error) {
       console.error('Error moving item down:', error);
-      // Revert pending updates on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -458,16 +450,13 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
     const handlePress = () => {
       if (!item.completed) {
-        // Flip animation
         flipValue.value = withTiming(1, { duration: 600 });
         
-        // Scale animation
         scale.value = withSequence(
           withSpring(0.95, { duration: 100 }),
           withSpring(1, { duration: 100 })
         );
 
-        // XP animation
         xpOpacity.value = withTiming(1, { duration: 200 });
         xpTranslateY.value = withTiming(-40, { duration: 1000 }, () => {
           xpOpacity.value = withTiming(0, { duration: 200 });
@@ -480,7 +469,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
     return (
       <View style={styles.lessonCardContainer}>
-        {/* Timeline connector */}
         {(() => {
           const learnGoal = goal as unknown as LearnGoal;
           const currentItems = pendingUpdates[goal.id] || learnGoal.curriculumItems || [];
@@ -492,7 +480,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
           ]} />
         )}
         
-        {/* Timeline dot */}
         <View style={[
           styles.timelineDot,
           item.completed && styles.completedTimelineDot
@@ -506,10 +493,8 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
         <View style={styles.lessonCardContent}>
           <TouchableOpacity onPress={handlePress} style={styles.lessonCardTouchable}>
-            {/* Front of card */}
             <Animated.View style={[styles.lessonCard, frontAnimatedStyle]}>
               <View style={styles.lessonHeader}>
-                {/* Reorder arrows - only show on incomplete items */}
                 {!item.completed && (() => {
                   const learnGoal = goal as unknown as LearnGoal;
                   const baseItems = pendingUpdates[goal.id] || learnGoal.curriculumItems || [];
@@ -550,19 +535,17 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
               </View>
             </Animated.View>
 
-            {/* Back of card (completed state) */}
             {item.completed && (
               <Animated.View style={[styles.lessonCard, styles.completedCard, backAnimatedStyle]}>
                 <View style={styles.completedContent}>
                   <CheckCircle size={32} color={Colors.white} />
                   <Text style={styles.completedText}>Completed!</Text>
-                  <Text style={styles.xpEarnedText}>+25 XP</Text>
+                  <Text style={styles.xpEarnedText}>+5 XP</Text>
                 </View>
               </Animated.View>
             )}
           </TouchableOpacity>
 
-          {/* Delete button */}
           <TouchableOpacity 
             style={styles.removeButton}
             onPress={() => handleDeleteItem(goal.id, item.id, item.title)}
@@ -571,9 +554,8 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
           </TouchableOpacity>
         </View>
 
-        {/* XP animation */}
         <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpAnimationText}>+25 XP</Text>
+          <Text style={styles.xpAnimationText}>+5 XP</Text>
         </Animated.View>
       </View>
     );
@@ -581,7 +563,16 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
   return (
     <View style={styles.container}>
-      {/* Level Up Banner */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Learning Goals</Text>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
+        >
+          <Trash2 size={24} color={Colors.error} />
+        </TouchableOpacity>
+      </View>
+
       {showLevelUp && (
         <Animated.View style={styles.levelUpBanner}>
           <TrendingUp size={24} color={Colors.white} />
@@ -593,13 +584,11 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         {goals.map((goal) => {
           const LearnGoal = goal as unknown as LearnGoal;
           const progress = getProgress(goal);
-          // Use pending updates as base if they exist, otherwise use goal data
           const curriculumItems = pendingUpdates[goal.id] || LearnGoal.curriculumItems || [];
 
           return (
             <View key={goal.id} style={styles.LearnCard}>
-              {/* Header */}
-              <View style={styles.header}>
+              <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
                   <BookOpen size={24} color={Colors.primary} />
                   <View style={styles.titleTextContainer}>
@@ -611,7 +600,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                 </View>
               </View>
 
-              {/* Progress overview */}
               <View style={styles.progressOverview}>
                 <Text style={styles.progressLabel}>Progress</Text>
                 <View style={styles.progressBarContainer}>
@@ -630,9 +618,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                 </Text>
               </View>
 
-              {/* Learn timeline */}
               <View style={styles.timeline}>                
-                {/* Add new item input */}
                 <View style={styles.addItemContainer}>
                   <TextInput
                     style={styles.addItemInput}
@@ -652,7 +638,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Curriculum items */}
                 {curriculumItems.map((item: CurriculumItem, index: number) => (
                   <LessonCard
                     key={item.id}
@@ -671,7 +656,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                 )}
               </View>
 
-              {/* Stats */}
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{goal.xpEarned}</Text>
@@ -698,6 +682,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.gray800,
+  },
+  deleteButton: {
+    padding: 8,
   },
   levelUpBanner: {
     position: 'absolute',
@@ -734,7 +732,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  header: {
+  cardHeader: {
     marginBottom: 20,
   },
   titleContainer: {
@@ -798,12 +796,6 @@ const styles = StyleSheet.create({
   timeline: {
     marginBottom: 20,
   },
-  timelineTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.gray800,
-    marginBottom: 16,
-  },
   addItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -838,19 +830,19 @@ const styles = StyleSheet.create({
   },
   timelineConnector: {
     position: 'absolute',
-    left: 18, // Centered with the 24px wide circle (7 + 12 - 1 = 18)
-    top: 44, // Start from bottom of the centered circle (28 + 24 - 8 = 44)
+    left: 18,
+    top: 44,
     width: 2,
-    height: 80, // Doubled from 40px to 80px
+    height: 80,
     backgroundColor: Colors.gray200,
   },
   completedTimelineConnector: {
-    backgroundColor: '#8B5CF6', // Purple color
+    backgroundColor: '#8B5CF6',
   },
   timelineDot: {
     position: 'absolute',
     left: 7,
-    top: 28, // Centered with 80px tall lesson card (40px - 12px = 28px)
+    top: 28,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -971,23 +963,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '600',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reorderButtons: {
+  reorderButtonsInline: {
     flexDirection: 'column',
-    marginRight: 8,
+    marginRight: 12,
   },
   reorderButton: {
     padding: 4,
   },
   reorderButtonDisabled: {
     opacity: 0.3,
-  },
-  reorderButtonsInline: {
-    flexDirection: 'column',
-    marginRight: 12,
   },
   lessonTitleWithArrows: {
     marginLeft: 0,

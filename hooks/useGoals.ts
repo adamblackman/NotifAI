@@ -62,9 +62,6 @@ export function useGoals() {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // Remove optimistic update from here - let components handle their own optimistic UI
-
-      // First, fetch the current goal to get existing data
       const { data: currentGoal, error: fetchError } = await supabase
         .from('goals')
         .select('*')
@@ -74,12 +71,10 @@ export function useGoals() {
 
       if (fetchError) throw fetchError;
 
-      // Extract the database column updates
       const dbUpdates: any = {
         updated_at: new Date().toISOString(),
       };
 
-      // Map top-level goal properties to their database columns
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
       if (updates.category !== undefined) dbUpdates.category = updates.category;
@@ -88,7 +83,6 @@ export function useGoals() {
       }
       if (updates.xpEarned !== undefined) dbUpdates.xp_earned = updates.xpEarned;
 
-      // Merge category-specific data into the existing data JSONB column
       const existingData = currentGoal.data || {};
       const newData = extractGoalData(updates);
       const mergedData = { ...existingData, ...newData };
@@ -107,14 +101,12 @@ export function useGoals() {
 
       if (error) throw error;
 
-      // Update with the actual data from Supabase to ensure consistency
       const updatedGoal = transformGoalFromDB(data);
       
       setGoals(prev => prev.map(goal => goal.id === id ? updatedGoal : goal));
       return updatedGoal;
     } catch (error) {
       console.error('Error updating goal:', error);
-      // Revert the optimistic update on error by refetching
       fetchGoals();
       throw error;
     }
@@ -143,13 +135,17 @@ export function useGoals() {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const xpEarned = 100; // Base XP for goal completion
+      const goal = goals.find(g => g.id === id);
+      if (!goal) throw new Error('Goal not found');
+
+      const completionXP = 100;
+      const newXpEarned = goal.xpEarned + completionXP;
       
       const { data, error } = await supabase
         .from('goals')
         .update({
           completed_at: new Date().toISOString(),
-          xp_earned: xpEarned,
+          xp_earned: newXpEarned,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -162,9 +158,7 @@ export function useGoals() {
       const completedGoal = transformGoalFromDB(data);
       setGoals(prev => prev.map(goal => goal.id === id ? completedGoal : goal));
       
-      // TODO: Update user XP and check for medals
-      
-      return xpEarned;
+      return completionXP;
     } catch (error) {
       console.error('Error completing goal:', error);
       throw error;
@@ -197,7 +191,6 @@ export function useGoals() {
   };
 }
 
-// Helper functions to transform between app types and database types
 function transformGoalFromDB(dbGoal: any): Goal {
   const baseGoal = {
     id: dbGoal.id,
@@ -209,7 +202,6 @@ function transformGoalFromDB(dbGoal: any): Goal {
     xpEarned: dbGoal.xp_earned,
   };
 
-  // Merge category-specific data from the JSONB data column
   return { ...baseGoal, ...(dbGoal.data || {}) } as Goal;
 }
 

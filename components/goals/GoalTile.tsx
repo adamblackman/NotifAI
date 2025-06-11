@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank } from 'lucide-react-native';
+import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank, GripVertical, Award } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 
 interface Goal {
@@ -18,6 +18,7 @@ interface Goal {
 interface GoalTileProps {
   goal: Goal;
   onPress: () => void;
+  isDragging?: boolean;
 }
 
 const categoryConfig = {
@@ -43,31 +44,53 @@ const categoryConfig = {
   },
 };
 
-export function GoalTile({ goal, onPress }: GoalTileProps) {
+export function GoalTile({ goal, onPress, isDragging = false }: GoalTileProps) {
   const config = categoryConfig[goal.category];
   
-  // Add defensive check for undefined config
   if (!config) {
     console.warn(`Unknown goal category: ${goal.category}. Available categories:`, Object.keys(categoryConfig));
     return null;
   }
   
   const Icon = config.icon;
+  const isCompleted = !!goal.completedAt;
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity 
+      style={[
+        styles.container, 
+        isDragging && styles.dragging,
+        isCompleted && styles.completedContainer
+      ]} 
+      onPress={onPress} 
+      activeOpacity={0.8}
+    >
       <View style={styles.content}>
+        <View style={styles.dragHandle}>
+          <GripVertical size={20} color={Colors.gray400} />
+        </View>
+        
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <View style={[styles.iconContainer, { backgroundColor: `${config.color}15` }]}>
               <Icon size={20} color={config.color} />
             </View>
             <View style={styles.titleContainer}>
-              <Text style={styles.title}>{goal.title}</Text>
+              <Text style={[styles.title, isCompleted && styles.completedTitle]}>
+                {goal.title}
+              </Text>
               <Text style={styles.categoryLabel}>{config.label}</Text>
             </View>
           </View>
-          <Text style={styles.xpText}>{goal.xpEarned} XP</Text>
+          
+          <View style={styles.rightSection}>
+            {isCompleted && (
+              <View style={styles.completionBadge}>
+                <Award size={16} color={Colors.warning} />
+              </View>
+            )}
+            <Text style={styles.xpText}>{goal.xpEarned} XP</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -88,14 +111,30 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  dragging: {
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+    transform: [{ scale: 1.02 }],
+  },
+  completedContainer: {
+    opacity: 0.7,
+    backgroundColor: Colors.gray50,
+  },
   content: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
+  },
+  dragHandle: {
+    marginRight: 12,
+    padding: 4,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    alignItems: 'center',
+    flex: 1,
   },
   titleRow: {
     flexDirection: 'row',
@@ -120,21 +159,29 @@ const styles = StyleSheet.create({
     color: Colors.gray900,
     marginBottom: 2,
   },
+  completedTitle: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray500,
+  },
   categoryLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.gray500,
     textTransform: 'uppercase',
   },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  completionBadge: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 12,
+    padding: 4,
+  },
   xpText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.gray600,
-  },
-  description: {
-    fontSize: 14,
-    color: Colors.gray600,
-    lineHeight: 20,
-    marginTop: 4,
   },
 });

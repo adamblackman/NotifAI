@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Award, Trophy, Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 import { useProfile } from '@/hooks/useProfile';
 import { Card } from '@/components/ui/Card';
@@ -37,39 +38,55 @@ const categoryConfig = {
   },
 };
 
+const achievementThresholds = {
+  bronze: 1,
+  silver: 10,
+  gold: 50,
+  diamond: 100,
+};
+
 export default function ProfileScreen() {
   const { profile, getLevelProgress, getXPForNextLevel, goalsXPBreakdown, refetch } = useProfile();
 
-  // Refresh profile data when tab is focused to get latest XP from goals
   useFocusEffect(
     React.useCallback(() => {
       refetch();
     }, [refetch])
   );
 
+  const handleMedalPress = (category: string) => {
+    router.push(`/achievements/${category}`);
+  };
+
   const renderMedalShelf = (category: string, medals: string[]) => (
-    <Card key={category} style={styles.medalCard}>
-      <Text style={styles.categoryTitle}>{category.charAt(0).toUpperCase() + category.slice(1)}</Text>
-      <View style={styles.medalsContainer}>
-        {['bronze', 'silver', 'gold', 'diamond'].map((medalType) => {
-          const earned = medals.includes(medalType);
-          return (
-            <View
-              key={medalType}
-              style={[
-                styles.medalContainer,
-                { backgroundColor: earned ? `${medalColors[medalType as keyof typeof medalColors]}20` : Colors.gray100 }
-              ]}
-            >
-              <Award
-                size={24}
-                color={earned ? medalColors[medalType as keyof typeof medalColors] : Colors.gray300}
-              />
-            </View>
-          );
-        })}
-      </View>
-    </Card>
+    <TouchableOpacity 
+      key={category} 
+      onPress={() => handleMedalPress(category)}
+      activeOpacity={0.8}
+    >
+      <Card style={styles.medalCard}>
+        <Text style={styles.categoryTitle}>{category.charAt(0).toUpperCase() + category.slice(1)}</Text>
+        <View style={styles.medalsContainer}>
+          {['bronze', 'silver', 'gold', 'diamond'].map((medalType) => {
+            const earned = medals.includes(medalType);
+            return (
+              <View
+                key={medalType}
+                style={[
+                  styles.medalContainer,
+                  { backgroundColor: earned ? `${medalColors[medalType as keyof typeof medalColors]}20` : Colors.gray100 }
+                ]}
+              >
+                <Award
+                  size={24}
+                  color={earned ? medalColors[medalType as keyof typeof medalColors] : Colors.gray300}
+                />
+              </View>
+            );
+          })}
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 
   const renderXPBreakdown = () => (
@@ -130,6 +147,9 @@ export default function ProfileScreen() {
         
         <View style={styles.medalsSection}>
           <Text style={styles.sectionTitle}>Medal Collection</Text>
+          <Text style={styles.medalsSectionDescription}>
+            Tap on a category to see your achievement progress
+          </Text>
           {Object.entries(profile.medals).map(([category, medals]) =>
             renderMedalShelf(category, medals)
           )}
@@ -236,7 +256,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: Colors.gray800,
+    marginBottom: 8,
+  },
+  medalsSectionDescription: {
+    fontSize: 14,
+    color: Colors.gray600,
     marginBottom: 16,
+    lineHeight: 20,
   },
   medalCard: {
     marginBottom: 16,

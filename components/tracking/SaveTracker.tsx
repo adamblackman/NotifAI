@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
 import { PiggyBank, Calendar, Flame, ChevronDown, Trash2, Plus, Minus } from 'lucide-react-native';
 import { router } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -29,6 +30,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { SaveDates: string[], currentAmount: number }>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
   const [manualAmount, setManualAmount] = useState<Record<string, string>>({});
+  const [showDatePicker, setShowDatePicker] = useState<Record<string, boolean>>({});
   const { updateGoal, deleteGoal } = useGoals();
   const { addXP, checkAndAwardMedals } = useProfile();
 
@@ -102,6 +104,16 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     return `${months} month${months > 1 ? 's' : ''} left`;
   };
 
+  const isOverdue = (goal: Goal) => {
+    const SaveGoal = goal as unknown as SaveGoal;
+    const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
+    if (!targetDate) return false;
+    
+    const targetDateObj = new Date(targetDate);
+    const now = new Date();
+    return targetDateObj < now;
+  };
+
   const getDailySaveAmount = (goal: Goal) => {
     const SaveGoal = goal as unknown as SaveGoal;
     const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
@@ -157,7 +169,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     return SaveDates.includes(dateStr);
   };
 
-  const getStreakCount = (goal: Goal) => {
+  const getCurrentStreakCount = (goal: Goal) => {
     const SaveGoal = goal as unknown as SaveGoal;
     let SaveDates = SaveGoal.SaveDates || [];
     
@@ -171,21 +183,55 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     const sortedDates = SaveDates.sort((a: string, b: string) => b.localeCompare(a));
     let streak = 0;
     let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
     
     for (const dateStr of sortedDates) {
       const date = new Date(dateStr);
+      date.setHours(0, 0, 0, 0);
       const diffTime = currentDate.getTime() - date.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      if (diffDays === streak + 1 || (streak === 0 && diffDays <= 1)) {
+      if (diffDays === streak || (streak === 0 && diffDays <= 1)) {
         streak++;
-        currentDate = date;
+        currentDate = new Date(date.getTime() - 24 * 60 * 60 * 1000);
       } else {
         break;
       }
     }
     
     return streak;
+  };
+
+  const getLongestStreakCount = (goal: Goal) => {
+    const SaveGoal = goal as unknown as SaveGoal;
+    let SaveDates = SaveGoal.SaveDates || [];
+    
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      SaveDates = pending.SaveDates;
+    }
+    
+    if (SaveDates.length === 0) return 0;
+
+    const sortedDates = SaveDates.sort((a: string, b: string) => a.localeCompare(b));
+    let maxStreak = 0;
+    let currentStreak = 1;
+    
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prevDate = new Date(sortedDates[i - 1]);
+      const currDate = new Date(sortedDates[i]);
+      const diffTime = currDate.getTime() - prevDate.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        currentStreak++;
+      } else {
+        maxStreak = Math.max(maxStreak, currentStreak);
+        currentStreak = 1;
+      }
+    }
+    
+    return Math.max(maxStreak, currentStreak);
   };
 
   const calculateStreakXP = (streak: number) => {
@@ -228,7 +274,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     }));
 
     // Calculate streak and XP
-    const currentStreak = getStreakCount({ ...goal, SaveDates: newSaveDates } as Goal);
+    const currentStreak = getCurrentStreakCount({ ...goal, SaveDates: newSaveDates } as Goal);
     const xpGained = calculateStreakXP(currentStreak);
     const xpChange = isCompleted ? -xpGained : xpGained;
     const newXpEarned = goal.xpEarned + xpChange;
@@ -242,11 +288,6 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       
       // Add XP to user profile
       await addXP(xpChange);
-      
-      // Check for achievements
-      if (!isCompleted) {
-        await checkAndAwardMedals('save', newSaveDates.length);
-      }
       
       setPendingOperations(prev => {
         const updated = new Set(prev);
@@ -268,14 +309,14 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     }
   };
 
-  const handleManualAmountChange = async (goalId: string, change: number) => {
+  const handleManualAmountChange = async (goalId: string, amount: number) => {
     const goal = goals.find(g => g.id === goalId);
     if (!goal) return;
 
     const SaveGoal = goal as unknown as SaveGoal;
     const pendingData = pendingUpdates[goalId];
     const baseCurrentAmount = pendingData ? pendingData.currentAmount : (SaveGoal.currentAmount || 0);
-    const newAmount = Math.max(0, baseCurrentAmount + change);
+    const newAmount = Math.max(0, baseCurrentAmount + amount);
 
     const operationId = `manual-${goalId}-${Date.now()}`;
     
@@ -310,6 +351,21 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
         delete updated[goalId];
         return updated;
       });
+    }
+  };
+
+  const handleDateChange = async (goalId: string, event: any, selectedDate?: Date) => {
+    setShowDatePicker(prev => ({ ...prev, [goalId]: false }));
+    
+    if (selectedDate) {
+      try {
+        await updateGoal(goalId, {
+          deadline: selectedDate,
+          targetDate: selectedDate,
+        } as Partial<SaveGoal>);
+      } catch (error) {
+        console.error('Error updating deadline:', error);
+      }
     }
   };
 
@@ -392,7 +448,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       );
 
       if (!isCompleted) {
-        const currentStreak = getStreakCount(goal);
+        const currentStreak = getCurrentStreakCount(goal);
         const xpGained = calculateStreakXP(currentStreak + 1);
         const dailyAmount = getDailySaveAmount(goal);
         
@@ -441,7 +497,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
         </TouchableOpacity>
         
         <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+{calculateStreakXP(getStreakCount(goal) + 1)} XP / +{formatCurrency(getDailySaveAmount(goal))}</Text>
+          <Text style={styles.xpText}>+{calculateStreakXP(getCurrentStreakCount(goal) + 1)} XP / +{formatCurrency(getDailySaveAmount(goal))}</Text>
         </Animated.View>
       </View>
     );
@@ -479,12 +535,12 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Save Goals</Text>
+        <Text style={styles.title}>Save</Text>
         <TouchableOpacity 
           style={styles.deleteButton}
           onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
         >
-          <Trash2 size={24} color={Colors.error} />
+          <Trash2 size={24} color={Colors.gray400} />
         </TouchableOpacity>
       </View>
 
@@ -493,8 +549,9 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
           const SaveGoal = goal as unknown as SaveGoal;
           const progress = getProgress(goal);
           const timeRemaining = getTimeRemaining(goal);
-          const streak = getStreakCount(goal);
-          const flameProps = getFlameIntensity(streak);
+          const currentStreak = getCurrentStreakCount(goal);
+          const longestStreak = getLongestStreakCount(goal);
+          const flameProps = getFlameIntensity(currentStreak);
           const availableMonths = getAvailableMonths(goal);
           const dailyAmount = getDailySaveAmount(goal);
 
@@ -502,7 +559,6 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
             <View key={goal.id} style={styles.SaveCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
-                  <PiggyBank size={24} color={Colors.primary} />
                   <View style={styles.titleTextContainer}>
                     <Text style={styles.SaveTitle}>{goal.title}</Text>
                     {goal.description && (
@@ -512,7 +568,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                 </View>
                 <View style={styles.streakContainer}>
                   <Flame size={flameProps.size} color={flameProps.color} />
-                  <Text style={styles.streakNumber}>{streak}</Text>
+                  <Text style={styles.streakNumber}>{currentStreak}</Text>
                   <Text style={styles.streakLabel}>day streak</Text>
                 </View>
               </View>
@@ -540,30 +596,28 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                 </View>
 
                 {timeRemaining && (
-                  <View style={styles.countdownContainer}>
-                    <Calendar size={16} color={Colors.gray500} />
-                    <Text style={styles.countdownText}>{timeRemaining}</Text>
-                  </View>
+                  <TouchableOpacity 
+                    style={styles.countdownContainer}
+                    onPress={() => setShowDatePicker(prev => ({ ...prev, [goal.id]: true }))}
+                  >
+                    <Calendar size={16} color={isOverdue(goal) ? Colors.error : Colors.gray500} />
+                    <Text style={[
+                      styles.countdownText,
+                      isOverdue(goal) && styles.overdueText
+                    ]}>
+                      {timeRemaining}
+                    </Text>
+                  </TouchableOpacity>
                 )}
 
-                <View style={styles.manualAmountContainer}>
-                  <Text style={styles.manualAmountLabel}>Manual Adjustment:</Text>
-                  <View style={styles.manualAmountControls}>
-                    <TouchableOpacity 
-                      style={styles.amountButton}
-                      onPress={() => handleManualAmountChange(goal.id, -dailyAmount)}
-                    >
-                      <Minus size={16} color={Colors.white} />
-                    </TouchableOpacity>
-                    <Text style={styles.dailyAmountText}>{formatCurrency(dailyAmount)}</Text>
-                    <TouchableOpacity 
-                      style={styles.amountButton}
-                      onPress={() => handleManualAmountChange(goal.id, dailyAmount)}
-                    >
-                      <Plus size={16} color={Colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                {showDatePicker[goal.id] && (
+                  <DateTimePicker
+                    value={SaveGoal.deadline ? new Date(SaveGoal.deadline) : new Date()}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => handleDateChange(goal.id, event, selectedDate)}
+                  />
+                )}
               </View>
 
               <View style={styles.calendarSection}>
@@ -587,6 +641,43 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                       date={date}
                     />
                   ))}
+                </View>
+              </View>
+
+              <View style={styles.manualAmountContainer}>
+                <Text style={styles.manualAmountLabel}>Manual Adjustment:</Text>
+                <View style={styles.manualAmountControls}>
+                  <TextInput
+                    style={styles.manualAmountInput}
+                    placeholder="Amount"
+                    value={manualAmount[goal.id] || ''}
+                    onChangeText={(text) => setManualAmount(prev => ({ ...prev, [goal.id]: text }))}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity 
+                    style={[styles.amountButton, styles.subtractButton]}
+                    onPress={() => {
+                      const amount = parseFloat(manualAmount[goal.id] || '0');
+                      if (amount > 0) {
+                        handleManualAmountChange(goal.id, -amount);
+                        setManualAmount(prev => ({ ...prev, [goal.id]: '' }));
+                      }
+                    }}
+                  >
+                    <Minus size={16} color={Colors.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.amountButton}
+                    onPress={() => {
+                      const amount = parseFloat(manualAmount[goal.id] || '0');
+                      if (amount > 0) {
+                        handleManualAmountChange(goal.id, amount);
+                        setManualAmount(prev => ({ ...prev, [goal.id]: '' }));
+                      }
+                    }}
+                  >
+                    <Plus size={16} color={Colors.white} />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -651,8 +742,8 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   <Text style={styles.statLabel}>Remaining</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{streak}</Text>
-                  <Text style={styles.statLabel}>Streak</Text>
+                  <Text style={styles.statValue}>{longestStreak}</Text>
+                  <Text style={styles.statLabel}>Longest Streak</Text>
                 </View>
               </View>
             </View>
@@ -707,7 +798,6 @@ const styles = StyleSheet.create({
   },
   titleTextContainer: {
     flex: 1,
-    marginLeft: 12,
   },
   SaveTitle: {
     fontSize: 20,
@@ -791,11 +881,15 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     marginLeft: 6,
   },
+  overdueText: {
+    color: Colors.error,
+    fontWeight: '600',
+  },
   manualAmountContainer: {
     backgroundColor: Colors.gray50,
     borderRadius: 12,
     padding: 16,
-    marginTop: 8,
+    marginBottom: 16,
   },
   manualAmountLabel: {
     fontSize: 14,
@@ -806,8 +900,17 @@ const styles = StyleSheet.create({
   manualAmountControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
+    gap: 12,
+  },
+  manualAmountInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: Colors.white,
   },
   amountButton: {
     backgroundColor: Colors.primary,
@@ -817,12 +920,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dailyAmountText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.gray800,
-    minWidth: 80,
-    textAlign: 'center',
+  subtractButton: {
+    backgroundColor: Colors.error,
   },
   calendarSection: {
     marginBottom: 20,

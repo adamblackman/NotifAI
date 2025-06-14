@@ -13,7 +13,7 @@ import { generateGoalFromThought } from '@/lib/goalGeneration';
 export default function HomeScreen() {
   const { goals, refetch, updateGoal } = useGoals();
   const [isGenerating, setIsGenerating] = useState(false);
-  const activeGoals = goals.filter(goal => !goal.completedAt);
+  const activeGoals = goals.filter(goal => !goal.completedAt).sort((a, b) => (a.order || 0) - (b.order || 0));
   const completedGoals = goals.filter(goal => goal.completedAt);
 
   const handleThoughtDump = async (thought: string) => {

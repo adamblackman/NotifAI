@@ -95,7 +95,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     return completedDates.includes(dateStr);
   };
 
-  const getStreakCount = (goal: Goal) => {
+  const getCurrentStreakCount = (goal: Goal) => {
     const habitGoal = goal as unknown as HabitGoal;
     let completedDates = habitGoal.completedDates || [];
     
@@ -109,21 +109,55 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     const sortedDates = completedDates.sort((a: string, b: string) => b.localeCompare(a));
     let streak = 0;
     let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
     
     for (const dateStr of sortedDates) {
       const date = new Date(dateStr);
+      date.setHours(0, 0, 0, 0);
       const diffTime = currentDate.getTime() - date.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      if (diffDays === streak + 1 || (streak === 0 && diffDays <= 1)) {
+      if (diffDays === streak || (streak === 0 && diffDays <= 1)) {
         streak++;
-        currentDate = date;
+        currentDate = new Date(date.getTime() - 24 * 60 * 60 * 1000);
       } else {
         break;
       }
     }
     
     return streak;
+  };
+
+  const getLongestStreakCount = (goal: Goal) => {
+    const habitGoal = goal as unknown as HabitGoal;
+    let completedDates = habitGoal.completedDates || [];
+    
+    const pending = pendingUpdates[goal.id];
+    if (pending) {
+      completedDates = pending;
+    }
+    
+    if (completedDates.length === 0) return 0;
+
+    const sortedDates = completedDates.sort((a: string, b: string) => a.localeCompare(b));
+    let maxStreak = 0;
+    let currentStreak = 1;
+    
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prevDate = new Date(sortedDates[i - 1]);
+      const currDate = new Date(sortedDates[i]);
+      const diffTime = currDate.getTime() - prevDate.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        currentStreak++;
+      } else {
+        maxStreak = Math.max(maxStreak, currentStreak);
+        currentStreak = 1;
+      }
+    }
+    
+    return Math.max(maxStreak, currentStreak);
   };
 
   const calculateStreakXP = (streak: number) => {
@@ -156,7 +190,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     }));
 
     // Calculate streak and XP
-    const currentStreak = getStreakCount({ ...goal, completedDates: newCompletedDates } as Goal);
+    const currentStreak = getCurrentStreakCount({ ...goal, completedDates: newCompletedDates } as Goal);
     const xpGained = calculateStreakXP(currentStreak);
     const xpChange = isCompleted ? -xpGained : xpGained;
     const newXpEarned = goal.xpEarned + xpChange;
@@ -169,11 +203,6 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       
       // Add XP to user profile
       await addXP(xpChange);
-      
-      // Check for achievements
-      if (!isCompleted) {
-        await checkAndAwardMedals('habit', newCompletedDates.length);
-      }
       
       setPendingOperations(prev => {
         const updated = new Set(prev);
@@ -274,7 +303,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       );
 
       if (!isCompleted) {
-        const currentStreak = getStreakCount(goal);
+        const currentStreak = getCurrentStreakCount(goal);
         const xpGained = calculateStreakXP(currentStreak + 1);
         
         xpOpacity.value = withTiming(1, { duration: 200 });
@@ -322,7 +351,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
         </TouchableOpacity>
         
         <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+{calculateStreakXP(getStreakCount(goal) + 1)} XP</Text>
+          <Text style={styles.xpText}>+{calculateStreakXP(getCurrentStreakCount(goal) + 1)} XP</Text>
         </Animated.View>
       </View>
     );
@@ -360,26 +389,26 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Habits</Text>
+        <Text style={styles.title}>Habit</Text>
         <TouchableOpacity 
           style={styles.deleteButton}
           onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
         >
-          <Trash2 size={24} color={Colors.error} />
+          <Trash2 size={24} color={Colors.gray400} />
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {goals.map((goal) => {
-          const streak = getStreakCount(goal);
-          const flameProps = getFlameIntensity(streak);
+          const currentStreak = getCurrentStreakCount(goal);
+          const longestStreak = getLongestStreakCount(goal);
+          const flameProps = getFlameIntensity(currentStreak);
           const availableMonths = getAvailableMonths(goal);
 
           return (
             <View key={goal.id} style={styles.habitCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
-                  <Repeat size={24} color={Colors.primary} />
                   <View style={styles.titleTextContainer}>
                     <Text style={styles.habitTitle}>{goal.title}</Text>
                     {goal.description && (
@@ -389,7 +418,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
                 </View>
                 <View style={styles.streakContainer}>
                   <Flame size={flameProps.size} color={flameProps.color} />
-                  <Text style={styles.streakNumber}>{streak}</Text>
+                  <Text style={styles.streakNumber}>{currentStreak}</Text>
                   <Text style={styles.streakLabel}>day streak</Text>
                 </View>
               </View>
@@ -514,8 +543,8 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
                   <Text style={styles.statLabel}>Total Days</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{streak}</Text>
-                  <Text style={styles.statLabel}>Current Streak</Text>
+                  <Text style={styles.statValue}>{longestStreak}</Text>
+                  <Text style={styles.statLabel}>Longest Streak</Text>
                 </View>
               </View>
             </View>
@@ -570,7 +599,6 @@ const styles = StyleSheet.create({
   },
   titleTextContainer: {
     flex: 1,
-    marginLeft: 12,
   },
   habitTitle: {
     fontSize: 20,

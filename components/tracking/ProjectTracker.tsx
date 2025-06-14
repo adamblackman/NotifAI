@@ -220,12 +220,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       // Add XP to user profile
       await addXP(xpChange);
       
-      // Check for achievements
-      if (!wasCompleted) {
-        const completedCount = updatedTasks.filter(task => task.completed).length;
-        await checkAndAwardMedals('project', completedCount);
-      }
-      
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -450,12 +444,12 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Projects</Text>
+        <Text style={styles.title}>Project</Text>
         <TouchableOpacity 
           style={styles.deleteButton}
           onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
         >
-          <Trash2 size={24} color={Colors.error} />
+          <Trash2 size={24} color={Colors.gray400} />
         </TouchableOpacity>
       </View>
 
@@ -469,7 +463,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             <View key={goal.id} style={styles.projectCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
-                  <CheckSquare size={24} color={Colors.primary} />
                   <View style={styles.titleTextContainer}>
                     <Text style={styles.projectTitle}>{goal.title}</Text>
                     {goal.description && (
@@ -602,7 +595,6 @@ const styles = StyleSheet.create({
   },
   titleTextContainer: {
     flex: 1,
-    marginLeft: 12,
   },
   projectTitle: {
     fontSize: 20,

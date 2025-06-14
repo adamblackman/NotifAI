@@ -7,14 +7,6 @@ const calculateLevel = (xp: number): number => {
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 };
 
-const getMedalForCompletions = (completions: number): MedalType | null => {
-  if (completions >= 100) return 'diamond';
-  if (completions >= 50) return 'gold';
-  if (completions >= 10) return 'silver';
-  if (completions >= 1) return 'bronze';
-  return null;
-};
-
 export function useProfile() {
   const [profile, setProfile] = useState<UserProfile>({
     id: '1',
@@ -119,7 +111,37 @@ export function useProfile() {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const medal = getMedalForCompletions(completions);
+      // Only award medals when entire goals are completed, not individual tasks
+      // This function is kept for compatibility but should only be called for goal completion
+      return null;
+    } catch (error) {
+      console.error('Error checking medals:', error);
+      throw error;
+    }
+  };
+
+  const awardMedalForGoalCompletion = async (category: string) => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      // Get completed goals count for this category
+      const { data: completedGoals, error } = await supabase
+        .from('goals')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('category', category)
+        .not('completed_at', 'is', null);
+
+      if (error) throw error;
+
+      const completedCount = completedGoals.length;
+      let medal: MedalType | null = null;
+
+      if (completedCount >= 100) medal = 'diamond';
+      else if (completedCount >= 50) medal = 'gold';
+      else if (completedCount >= 10) medal = 'silver';
+      else if (completedCount >= 1) medal = 'bronze';
+
       if (medal && !profile.medals[category as keyof typeof profile.medals].includes(medal)) {
         const medalXP = {
           bronze: 10,
@@ -136,28 +158,15 @@ export function useProfile() {
         const newXP = profile.xp + medalXP;
         const newLevel = calculateLevel(newXP);
 
-        const { data, error } = await supabase
+        const { error: updateError } = await supabase
           .from('profiles')
           .update({
             medals: newMedals,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', user.id)
-          .select()
-          .single();
+          .eq('id', user.id);
 
-        if (error) throw error;
-
-        await supabase
-          .from('goals')
-          .insert({
-            user_id: user.id,
-            title: `${medal.charAt(0).toUpperCase() + medal.slice(1)} Medal - ${category.charAt(0).toUpperCase() + category.slice(1)}`,
-            description: `Medal bonus for ${category} achievements`,
-            category: 'habit',
-            xp_earned: medalXP,
-            completed_at: new Date().toISOString(),
-          });
+        if (updateError) throw updateError;
 
         setProfile(prev => ({
           ...prev,
@@ -170,7 +179,7 @@ export function useProfile() {
       }
       return null;
     } catch (error) {
-      console.error('Error checking medals:', error);
+      console.error('Error awarding medal:', error);
       throw error;
     }
   };
@@ -195,6 +204,7 @@ export function useProfile() {
     goalsXPBreakdown,
     addXP,
     checkAndAwardMedals,
+    awardMedalForGoalCompletion,
     getXPForNextLevel,
     getLevelProgress,
     refetch: fetchProfile,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
 import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Animated, { 
@@ -260,12 +260,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
       // Add XP to user profile
       await addXP(xpChange);
-      
-      // Check for achievements
-      if (!wasCompleted) {
-        const completedCount = updatedItems.filter(item => item.completed).length;
-        await checkAndAwardMedals('learn', completedCount);
-      }
 
       setPendingOperations(prev => {
         const updated = new Set(prev);
@@ -564,12 +558,12 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Learning Goals</Text>
+        <Text style={styles.title}>Learn</Text>
         <TouchableOpacity 
           style={styles.deleteButton}
           onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
         >
-          <Trash2 size={24} color={Colors.error} />
+          <Trash2 size={24} color={Colors.gray400} />
         </TouchableOpacity>
       </View>
 
@@ -590,7 +584,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
             <View key={goal.id} style={styles.LearnCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
-                  <BookOpen size={24} color={Colors.primary} />
                   <View style={styles.titleTextContainer}>
                     <Text style={styles.LearnTitle}>{goal.title}</Text>
                     {goal.description && (
@@ -741,7 +734,6 @@ const styles = StyleSheet.create({
   },
   titleTextContainer: {
     flex: 1,
-    marginLeft: 12,
   },
   LearnTitle: {
     fontSize: 20,
@@ -808,7 +800,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.gray200,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVert: 12,
     fontSize: 16,
     backgroundColor: Colors.white,
     marginRight: 12,

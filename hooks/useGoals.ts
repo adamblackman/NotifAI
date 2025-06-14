@@ -22,7 +22,7 @@ export function useGoals() {
         .from('goals')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('order', { ascending: true });
 
       if (error) throw error;
 
@@ -39,7 +39,20 @@ export function useGoals() {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      // Get the highest order value for this user
+      const { data: existingGoals } = await supabase
+        .from('goals')
+        .select('order')
+        .eq('user_id', user.id)
+        .order('order', { ascending: false })
+        .limit(1);
+
+      const nextOrder = existingGoals && existingGoals.length > 0 
+        ? (existingGoals[0].order || 0) + 1 
+        : 0;
+
       const dbGoal = transformGoalToDB(goalData, user.id);
+      dbGoal.order = nextOrder;
       
       const { data, error } = await supabase
         .from('goals')
@@ -82,6 +95,7 @@ export function useGoals() {
         dbUpdates.completed_at = updates.completedAt ? updates.completedAt.toISOString() : null;
       }
       if (updates.xpEarned !== undefined) dbUpdates.xp_earned = updates.xpEarned;
+      if (updates.order !== undefined) dbUpdates.order = updates.order;
 
       const existingData = currentGoal.data || {};
       const newData = extractGoalData(updates);
@@ -200,13 +214,14 @@ function transformGoalFromDB(dbGoal: any): Goal {
     createdAt: new Date(dbGoal.created_at),
     completedAt: dbGoal.completed_at ? new Date(dbGoal.completed_at) : undefined,
     xpEarned: dbGoal.xp_earned,
+    order: dbGoal.order || 0,
   };
 
   return { ...baseGoal, ...(dbGoal.data || {}) } as Goal;
 }
 
 function transformGoalToDB(goal: Partial<Goal>, userId: string) {
-  const { id, createdAt, completedAt, xpEarned, ...rest } = goal;
+  const { id, createdAt, completedAt, xpEarned, order, ...rest } = goal;
   
   return {
     user_id: userId,
@@ -215,10 +230,11 @@ function transformGoalToDB(goal: Partial<Goal>, userId: string) {
     category: goal.category!,
     data: extractGoalData(goal),
     xp_earned: goal.xpEarned || 0,
+    order: goal.order || 0,
   };
 }
 
 function extractGoalData(goal: Partial<Goal>) {
-  const { id, title, description, category, createdAt, completedAt, xpEarned, ...data } = goal;
+  const { id, title, description, category, createdAt, completedAt, xpEarned, order, ...data } = goal;
   return data;
 }

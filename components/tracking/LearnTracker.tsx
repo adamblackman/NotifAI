@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
 import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react-native';
-import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -87,31 +86,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     );
   };
 
-  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
-    Alert.alert(
-      'Delete Goal',
-      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteGoal(goalId);
-              router.back();
-            } catch (error) {
-              console.error('Error deleting goal:', error);
-              Alert.alert('Error', 'Failed to delete goal. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
+
 
   const addCurriculumItem = async (goalId: string) => {
     const goal = goals.find(g => g.id === goalId);
@@ -557,16 +532,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Learn</Text>
-        <TouchableOpacity 
-          style={styles.deleteButton}
-          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
-        >
-          <Trash2 size={24} color={Colors.gray400} />
-        </TouchableOpacity>
-      </View>
-
       {showLevelUp && (
         <Animated.View style={styles.levelUpBanner}>
           <TrendingUp size={24} color={Colors.white} />
@@ -675,20 +640,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.gray800,
-  },
-  deleteButton: {
-    padding: 8,
   },
   levelUpBanner: {
     position: 'absolute',
@@ -800,7 +751,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.gray200,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVert: 12,
+    paddingVertical: 12,
     fontSize: 16,
     backgroundColor: Colors.white,
     marginRight: 12,

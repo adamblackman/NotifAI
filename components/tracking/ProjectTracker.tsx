@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown } from 'lucide-react-native';
-import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -258,31 +257,7 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     );
   };
 
-  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
-    Alert.alert(
-      'Delete Goal',
-      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteGoal(goalId);
-              router.back();
-            } catch (error) {
-              console.error('Error deleting goal:', error);
-              Alert.alert('Error', 'Failed to delete goal. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
+
 
   const reorderTasks = async (goalId: string, fromIndex: number, toIndex: number) => {
     const goal = goals.find(g => g.id === goalId);
@@ -443,16 +418,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Project</Text>
-        <TouchableOpacity 
-          style={styles.deleteButton}
-          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
-        >
-          <Trash2 size={24} color={Colors.gray400} />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         {goals.map((goal) => {
           const projectGoal = goal as unknown as ProjectGoal;
@@ -560,20 +525,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.gray800,
-  },
-  deleteButton: {
-    padding: 8,
   },
   projectCard: {
     backgroundColor: Colors.white,

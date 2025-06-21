@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Stack } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { HabitGoal, ProjectGoal, LearnGoal, SaveGoal } from '@/types/Goal';
@@ -13,7 +13,7 @@ import { SaveTracker } from '@/components/tracking/SaveTracker';
 
 export default function TrackingScreen() {
   const { category, goalId } = useLocalSearchParams<{ category: string; goalId?: string }>();
-  const { goals } = useGoals();
+  const { goals, deleteGoal } = useGoals();
   
   const categoryGoals = goals.filter(goal => 
     goal.category === category && !goal.completedAt
@@ -30,6 +30,35 @@ export default function TrackingScreen() {
       case 'save': return 'Save';
       default: return 'Goals';
     }
+  };
+
+  const handleDeleteGoal = () => {
+    if (displayGoals.length === 0) return;
+    
+    const goalToDelete = displayGoals[0];
+    Alert.alert(
+      'Delete Goal',
+      `Are you sure you want to delete "${goalToDelete.title}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGoal(goalToDelete.id);
+              router.back();
+            } catch (error) {
+              console.error('Error deleting goal:', error);
+              Alert.alert('Error', 'Failed to delete goal. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderTracker = () => {
@@ -60,13 +89,23 @@ export default function TrackingScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color={Colors.gray700} />
-          </TouchableOpacity>
-          <Text style={styles.title}>{getCategoryTitle()}</Text>
+          <View style={styles.leftSection}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft size={24} color={Colors.gray700} />
+            </TouchableOpacity>
+            <Text style={styles.title}>{getCategoryTitle()}</Text>
+          </View>
+          {displayGoals.length > 0 && (
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={handleDeleteGoal}
+            >
+              <Trash2 size={24} color={Colors.gray400} />
+            </TouchableOpacity>
+          )}
         </View>
         
         <View style={styles.content}>
@@ -85,10 +124,15 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray200,
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     marginRight: 16,
@@ -98,6 +142,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: Colors.gray800,
+  },
+  deleteButton: {
+    padding: 8,
   },
   content: {
     flex: 1,

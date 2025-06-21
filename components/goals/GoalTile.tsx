@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank, GripVertical, Award } from 'lucide-react-native';
+import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank, Award } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 
 interface Goal {
@@ -18,7 +18,6 @@ interface Goal {
 interface GoalTileProps {
   goal: Goal;
   onPress: () => void;
-  isDragging?: boolean;
 }
 
 const categoryConfig = {
@@ -44,7 +43,7 @@ const categoryConfig = {
   },
 };
 
-export function GoalTile({ goal, onPress, isDragging = false }: GoalTileProps) {
+export function GoalTile({ goal, onPress }: GoalTileProps) {
   const config = categoryConfig[goal.category];
   
   if (!config) {
@@ -59,17 +58,12 @@ export function GoalTile({ goal, onPress, isDragging = false }: GoalTileProps) {
     <TouchableOpacity 
       style={[
         styles.container, 
-        isDragging && styles.dragging,
         isCompleted && styles.completedContainer
       ]} 
       onPress={onPress} 
       activeOpacity={0.8}
     >
       <View style={styles.content}>
-        <View style={styles.dragHandle}>
-          <GripVertical size={20} color={Colors.gray400} />
-        </View>
-        
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <View style={[styles.iconContainer, { backgroundColor: `${config.color}15` }]}>
@@ -111,12 +105,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  dragging: {
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    transform: [{ scale: 1.02 }],
-  },
   completedContainer: {
     opacity: 0.7,
     backgroundColor: Colors.gray50,
@@ -125,10 +113,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-  },
-  dragHandle: {
-    marginRight: 12,
-    padding: 4,
   },
   header: {
     flexDirection: 'row',

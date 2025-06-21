@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, SafeAreaView, Alert } from 'react-native';
-import { router } from 'expo-router';
-import DragList, { DragListRenderItemInfo } from 'react-native-draglist';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { ThoughtDumpInput } from '@/components/goals/ThoughtDumpInput';
@@ -11,10 +10,17 @@ import { FloatingActionButton } from '@/components/goals/FloatingActionButton';
 import { generateGoalFromThought } from '@/lib/goalGeneration';
 
 export default function HomeScreen() {
-  const { goals, refetch, updateGoal } = useGoals();
+  const { goals, refetch } = useGoals();
   const [isGenerating, setIsGenerating] = useState(false);
-  const activeGoals = goals.filter(goal => !goal.completedAt).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const activeGoals = goals.filter(goal => !goal.completedAt);
   const completedGoals = goals.filter(goal => goal.completedAt);
+
+  // Refresh goals when screen comes into focus (e.g., when navigating back from tracking screen)
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const handleThoughtDump = async (thought: string) => {
     setIsGenerating(true);
@@ -55,46 +61,7 @@ export default function HomeScreen() {
     router.push('/create-goal');
   };
 
-  const onReordered = async (fromIndex: number, toIndex: number) => {
-    // Only reorder active goals
-    if (fromIndex === toIndex || fromIndex >= activeGoals.length || toIndex >= activeGoals.length) {
-      return;
-    }
 
-    try {
-      // Create a new array with the reordered goals
-      const reorderedGoals = [...activeGoals];
-      const [movedGoal] = reorderedGoals.splice(fromIndex, 1);
-      reorderedGoals.splice(toIndex, 0, movedGoal);
-
-      // Update the order field for each goal
-      const updatePromises = reorderedGoals.map((goal, index) => 
-        updateGoal(goal.id, { order: index })
-      );
-
-      await Promise.all(updatePromises);
-      await refetch();
-    } catch (error) {
-      console.error('Error reordering goals:', error);
-    }
-  };
-
-  const renderItem = ({ item, onDragStart, onDragEnd, isActive }: DragListRenderItemInfo<any>) => {
-    return (
-      <View
-        onTouchStart={onDragStart}
-        onTouchEnd={onDragEnd}
-      >
-        <GoalTile
-          goal={item}
-          onPress={() => handleGoalPress(item.id)}
-          isDragging={isActive}
-        />
-      </View>
-    );
-  };
-
-  const keyExtractor = (item: any) => item.id;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,16 +72,14 @@ export default function HomeScreen() {
           <EmptyState />
         ) : (
           <View style={styles.goalsContainer}>
-            {activeGoals.length > 0 && (
-              <DragList
-                data={activeGoals}
-                renderItem={renderItem}
-                keyExtractor={keyExtractor}
-                onReordered={onReordered}
-                scrollEnabled={false}
-                style={styles.dragList}
+            {/* Active goals */}
+            {activeGoals.map((goal) => (
+              <GoalTile
+                key={goal.id}
+                goal={goal}
+                onPress={() => handleGoalPress(goal.id)}
               />
-            )}
+            ))}
             
             {/* Show completed goals at the bottom */}
             {completedGoals.map((goal) => (
@@ -144,8 +109,5 @@ const styles = StyleSheet.create({
   goalsContainer: {
     padding: 16,
     paddingBottom: 120,
-  },
-  dragList: {
-    marginBottom: 16,
   },
 });

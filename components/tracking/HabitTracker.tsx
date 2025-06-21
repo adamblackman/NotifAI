@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
-import { Repeat, Flame, Calendar, ChevronDown, Trash2 } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { Repeat, Flame, Calendar, ChevronDown } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -224,31 +223,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
     }
   };
 
-  const handleDeleteGoal = (goalId: string, goalTitle: string) => {
-    Alert.alert(
-      'Delete Goal',
-      `Are you sure you want to delete "${goalTitle}"? This action cannot be undone.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteGoal(goalId);
-              router.back();
-            } catch (error) {
-              console.error('Error deleting goal:', error);
-              Alert.alert('Error', 'Failed to delete goal. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
+
 
   const getFlameIntensity = (streak: number) => {
     if (streak === 0) return { color: Colors.gray400, size: 20 };
@@ -388,16 +363,6 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Habit</Text>
-        <TouchableOpacity 
-          style={styles.deleteButton}
-          onPress={() => goals.length > 0 && handleDeleteGoal(goals[0].id, goals[0].title)}
-        >
-          <Trash2 size={24} color={Colors.gray400} />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         {goals.map((goal) => {
           const currentStreak = getCurrentStreakCount(goal);
@@ -559,20 +524,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.gray800,
-  },
-  deleteButton: {
-    padding: 8,
   },
   habitCard: {
     backgroundColor: Colors.white,

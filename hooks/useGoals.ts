@@ -169,9 +169,10 @@ export function useGoals() {
       const goal = goals.find((g) => g.id === id);
       if (!goal) throw new Error("Goal not found");
 
-      const completionXP = 100;
+      const completionXP = 100; // Exactly 100 XP for any goal completion
       const newXpEarned = goal.xpEarned + completionXP;
 
+      // Update goal as completed with XP
       const { data, error } = await supabase
         .from("goals")
         .update({
@@ -190,6 +191,10 @@ export function useGoals() {
       setGoals((prev) =>
         prev.map((goal) => goal.id === id ? completedGoal : goal)
       );
+
+      // Update user profile with completion XP
+      // Note: This will be handled by the addXP function in the tracking components
+      // when they call completeGoal. For manual completion, we should also add XP.
 
       return completionXP;
     } catch (error) {
@@ -213,6 +218,108 @@ export function useGoals() {
     return Array.from(categories);
   };
 
+  const checkAndCompleteGoal = async (goal: Goal): Promise<boolean> => {
+    if (goal.completedAt) return false; // Already completed
+
+    let shouldComplete = false;
+
+    switch (goal.category) {
+      case "habit": {
+        const habitGoal = goal as any;
+        const completedDays = habitGoal.completedDates?.length || 0;
+        const targetDays = habitGoal.targetDays || 0;
+        shouldComplete = completedDays >= targetDays && targetDays > 0;
+        break;
+      }
+      case "save": {
+        const saveGoal = goal as any;
+        const currentAmount = saveGoal.currentAmount || 0;
+        const targetAmount = saveGoal.targetAmount || 0;
+        shouldComplete = currentAmount >= targetAmount && targetAmount > 0;
+        break;
+      }
+      case "project": {
+        const projectGoal = goal as any;
+        const tasks = projectGoal.tasks || [];
+        const completedTasks = tasks.filter((task: any) => task.completed);
+        shouldComplete = tasks.length > 0 &&
+          completedTasks.length === tasks.length;
+        break;
+      }
+      case "learn": {
+        const learnGoal = goal as any;
+        const curriculumItems = learnGoal.curriculumItems || [];
+        const completedItems = curriculumItems.filter((item: any) =>
+          item.completed
+        );
+        shouldComplete = curriculumItems.length > 0 &&
+          completedItems.length === curriculumItems.length;
+        break;
+      }
+    }
+
+    if (shouldComplete) {
+      await completeGoal(goal.id);
+      return true;
+    }
+
+    return false;
+  };
+
+  const isGoalCompleted = (goal: Goal): boolean => {
+    if (goal.completedAt) return true;
+
+    switch (goal.category) {
+      case "habit": {
+        const habitGoal = goal as any;
+        const completedDays = habitGoal.completedDates?.length || 0;
+        const targetDays = habitGoal.targetDays || 0;
+        return completedDays >= targetDays && targetDays > 0;
+      }
+      case "save": {
+        const saveGoal = goal as any;
+        const currentAmount = saveGoal.currentAmount || 0;
+        const targetAmount = saveGoal.targetAmount || 0;
+        return currentAmount >= targetAmount && targetAmount > 0;
+      }
+      case "project": {
+        const projectGoal = goal as any;
+        const tasks = projectGoal.tasks || [];
+        const completedTasks = tasks.filter((task: any) => task.completed);
+        return tasks.length > 0 && completedTasks.length === tasks.length;
+      }
+      case "learn": {
+        const learnGoal = goal as any;
+        const curriculumItems = learnGoal.curriculumItems || [];
+        const completedItems = curriculumItems.filter((item: any) =>
+          item.completed
+        );
+        return curriculumItems.length > 0 &&
+          completedItems.length === curriculumItems.length;
+      }
+      default:
+        return false;
+    }
+  };
+
+  const getGoalsSortedByCompletion = (category?: GoalCategory): Goal[] => {
+    let filteredGoals = category
+      ? goals.filter((g) => g.category === category)
+      : goals;
+
+    // Sort: incomplete goals first, then completed goals
+    return filteredGoals.sort((a, b) => {
+      const aCompleted = isGoalCompleted(a);
+      const bCompleted = isGoalCompleted(b);
+
+      if (aCompleted === bCompleted) {
+        return (a.order || 0) - (b.order || 0); // Maintain original order within each group
+      }
+
+      return aCompleted ? 1 : -1; // Incomplete goals first
+    });
+  };
+
   return {
     goals,
     loading,
@@ -220,7 +327,10 @@ export function useGoals() {
     updateGoal,
     deleteGoal,
     completeGoal,
+    checkAndCompleteGoal,
+    isGoalCompleted,
     getGoalsByCategory,
+    getGoalsSortedByCompletion,
     getActiveCategories,
     refetch: fetchGoals,
   };

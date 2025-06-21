@@ -22,7 +22,7 @@ export function ThoughtDumpInput({ onSubmit, loading = false }: ThoughtDumpInput
   return (
     <View style={styles.container}>
       <Input
-        placeholder="What would you like to achieve? Describe your goal..."
+        placeholder="What would you like to achieve? Describe your goals... (e.g., 'I want to exercise daily, learn Spanish, and save for a vacation')"
         value={thought}
         onChangeText={setThought}
         multiline
@@ -31,7 +31,7 @@ export function ThoughtDumpInput({ onSubmit, loading = false }: ThoughtDumpInput
         variant="large"
       />
       <Button
-        title={loading ? "Generating..." : "Generate Plan"}
+        title={loading ? "Generating..." : "Generate Goals"}
         onPress={handleSubmit}
         disabled={!thought.trim() || loading}
         style={styles.button}

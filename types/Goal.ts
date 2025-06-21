@@ -1,4 +1,4 @@
-export type GoalCategory = 'habit' | 'project' | 'learn' | 'save';
+export type GoalCategory = "habit" | "project" | "learn" | "save";
 
 export interface BaseGoal {
   id: string;
@@ -8,10 +8,11 @@ export interface BaseGoal {
   createdAt: Date;
   completedAt?: Date;
   xpEarned: number;
+  order?: number;
 }
 
 export interface HabitGoal extends BaseGoal {
-  category: 'habit';
+  category: "habit";
   frequency?: boolean[]; // 7 days, true = active day
   streak?: number;
   completions?: { [date: string]: boolean };
@@ -20,14 +21,14 @@ export interface HabitGoal extends BaseGoal {
 }
 
 export interface ProjectGoal extends BaseGoal {
-  category: 'project';
+  category: "project";
   dueDate?: Date;
   tasks?: Task[];
   progress?: number; // 0-100
 }
 
 export interface LearnGoal extends BaseGoal {
-  category: 'learn';
+  category: "learn";
   curriculumItems?: CurriculumItem[];
   progress?: number; // 0-100
   targetHours?: number;
@@ -36,7 +37,7 @@ export interface LearnGoal extends BaseGoal {
 }
 
 export interface SaveGoal extends BaseGoal {
-  category: 'save';
+  category: "save";
   targetAmount?: number;
   currentAmount?: number;
   deadline?: Date;
@@ -76,7 +77,7 @@ export interface UserProfile {
   };
 }
 
-export type MedalType = 'bronze' | 'silver' | 'gold' | 'diamond';
+export type MedalType = "bronze" | "silver" | "gold" | "diamond";
 
 export interface Preferences {
   notificationWindow: {
@@ -84,5 +85,5 @@ export interface Preferences {
     end: number; // hour 0-23
   };
   notificationDays: boolean[]; // 7 days, true = active day
-  personality: 'serious' | 'friendly' | 'motivating' | 'funny';
+  personality: "serious" | "friendly" | "motivating" | "funny";
 }

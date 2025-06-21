@@ -2,22 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank, Award } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
-
-interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  category: 'habit' | 'project' | 'learn' | 'save';
-  data: Record<string, any>;
-  xpEarned: number;
-  createdAt: string;
-  completedAt: string | null;
-  updatedAt: string;
-}
+import { Goal, ProjectGoal, Task, HabitGoal, LearnGoal, SaveGoal, CurriculumItem } from '@/types/Goal';
 
 interface GoalTileProps {
   goal: Goal;
   onPress: () => void;
+  isCompleted?: boolean;
 }
 
 const categoryConfig = {
@@ -43,7 +33,7 @@ const categoryConfig = {
   },
 };
 
-export function GoalTile({ goal, onPress }: GoalTileProps) {
+export function GoalTile({ goal, onPress, isCompleted = false }: GoalTileProps) {
   const config = categoryConfig[goal.category];
   
   if (!config) {
@@ -52,13 +42,47 @@ export function GoalTile({ goal, onPress }: GoalTileProps) {
   }
   
   const Icon = config.icon;
-  const isCompleted = !!goal.completedAt;
+  const showCompleted = isCompleted || !!goal.completedAt;
+
+  // Calculate completion percentage for each goal type
+  const getCompletionPercentage = () => {
+    switch (goal.category) {
+      case 'habit': {
+        const habitGoal = goal as unknown as HabitGoal;
+        const completedDays = habitGoal.completedDates?.length || 0;
+        const targetDays = habitGoal.targetDays || 0;
+        return targetDays > 0 ? Math.round((completedDays / targetDays) * 100) : 0;
+      }
+      case 'project': {
+        const projectGoal = goal as unknown as ProjectGoal;
+        const tasks = projectGoal.tasks || [];
+        const completedTasks = tasks.filter((task: Task) => task.completed).length;
+        return tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+      }
+      case 'learn': {
+        const learnGoal = goal as unknown as LearnGoal;
+        const lessons = learnGoal.curriculumItems || [];
+        const completedLessons = lessons.filter((item: CurriculumItem) => item.completed).length;
+        return lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
+      }
+      case 'save': {
+        const saveGoal = goal as unknown as SaveGoal;
+        const currentAmount = saveGoal.currentAmount || 0;
+        const targetAmount = saveGoal.targetAmount || 0;
+        return targetAmount > 0 ? Math.round((currentAmount / targetAmount) * 100) : 0;
+      }
+      default:
+        return 0;
+    }
+  };
+
+  const completionPercentage = getCompletionPercentage();
 
   return (
     <TouchableOpacity 
       style={[
         styles.container, 
-        isCompleted && styles.completedContainer
+        showCompleted && styles.completedContainer
       ]} 
       onPress={onPress} 
       activeOpacity={0.8}
@@ -70,7 +94,7 @@ export function GoalTile({ goal, onPress }: GoalTileProps) {
               <Icon size={20} color={config.color} />
             </View>
             <View style={styles.titleContainer}>
-              <Text style={[styles.title, isCompleted && styles.completedTitle]}>
+              <Text style={[styles.title, showCompleted && styles.completedTitle]}>
                 {goal.title}
               </Text>
               <Text style={styles.categoryLabel}>{config.label}</Text>
@@ -78,12 +102,14 @@ export function GoalTile({ goal, onPress }: GoalTileProps) {
           </View>
           
           <View style={styles.rightSection}>
-            {isCompleted && (
+            {showCompleted && (
               <View style={styles.completionBadge}>
                 <Award size={16} color={Colors.warning} />
               </View>
             )}
-            <Text style={styles.xpText}>{goal.xpEarned} XP</Text>
+            <Text style={styles.xpText}>
+              {completionPercentage}%
+            </Text>
           </View>
         </View>
       </View>

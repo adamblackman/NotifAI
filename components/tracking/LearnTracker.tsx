@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
-import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown, Edit3, Check } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -22,12 +22,58 @@ interface LearnTrackerProps {
 const { width } = Dimensions.get('window');
 
 export function LearnTracker({ goals }: LearnTrackerProps) {
-  const [showLevelUp, setShowLevelUp] = useState(false);
   const [newItemTitles, setNewItemTitles] = useState<Record<string, string>>({});
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, CurriculumItem[]>>({});
+  const [pendingXPUpdates, setPendingXPUpdates] = useState<Record<string, number>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const { updateGoal, deleteGoal } = useGoals();
-  const { addXP, checkAndAwardMedals } = useProfile();
+  const [editMode, setEditMode] = useState<Record<string, boolean>>({});
+  const [editedTitles, setEditedTitles] = useState<Record<string, string>>({});
+  const [editedDescriptions, setEditedDescriptions] = useState<Record<string, string>>({});
+  const { updateGoal, deleteGoal, checkAndCompleteGoal, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
+  const { syncProfileXPToGoals, awardMedalForGoalCompletion } = useProfile();
+
+  const toggleEditMode = (goalId: string) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    const isCurrentlyEditing = editMode[goalId];
+    
+    if (isCurrentlyEditing) {
+      // Save changes
+      saveGoalEdits(goalId);
+    } else {
+      // Enter edit mode - populate current values
+      setEditedTitles(prev => ({
+        ...prev,
+        [goalId]: goal.title
+      }));
+      setEditedDescriptions(prev => ({
+        ...prev,
+        [goalId]: goal.description || ''
+      }));
+    }
+    
+    setEditMode(prev => ({
+      ...prev,
+      [goalId]: !isCurrentlyEditing
+    }));
+  };
+
+  const saveGoalEdits = async (goalId: string) => {
+    const newTitle = editedTitles[goalId];
+    const newDescription = editedDescriptions[goalId];
+    
+    if (!newTitle?.trim()) return;
+
+    try {
+      await updateGoal(goalId, {
+        title: newTitle.trim(),
+        description: newDescription?.trim() || undefined
+      });
+    } catch (error) {
+      console.error('Error updating goal:', error);
+    }
+  };
 
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
@@ -86,8 +132,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
     );
   };
 
-
-
   const addCurriculumItem = async (goalId: string) => {
     const goal = goals.find(g => g.id === goalId);
     const newItemTitle = newItemTitles[goalId];
@@ -139,6 +183,15 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         updated.delete(operationId);
         return updated;
       });
+
+      // Clear pending XP updates when operation completes
+      if (pendingXPUpdates[goalId] !== undefined) {
+        setPendingXPUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
+      }
     } catch (error) {
       console.error('Error adding curriculum item:', error);
       setPendingOperations(prev => {
@@ -215,9 +268,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
 
-    const wasCompleted = baseItems.find((item: CurriculumItem) => item.id === itemId)?.completed;
-    const xpChange = wasCompleted ? -5 : 5;
-
     const operationId = `toggle-${goalId}-${itemId}`;
 
     setPendingOperations(prev => new Set([...prev, operationId]));
@@ -226,15 +276,33 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       [goalId]: updatedItems
     }));
 
+    // Calculate total XP as 5 × completed tasks
+    const completedCount = updatedItems.filter((item: CurriculumItem) => item.completed).length;
+    const newXpEarned = completedCount * 5;
+    const xpChange = newXpEarned - goal.xpEarned;
+
+    // Track XP changes optimistically
+    const currentPendingXP = pendingXPUpdates[goalId] || 0;
+    setPendingXPUpdates(prev => ({
+      ...prev,
+      [goalId]: currentPendingXP + xpChange
+    }));
+
     try {
-      await updateGoal(goalId, {
+      const updatedGoal = await updateGoal(goalId, {
         ...goal,
         curriculumItems: updatedItems,
-        xpEarned: goal.xpEarned + xpChange,
+        xpEarned: newXpEarned,
       });
+      
+      // Check if goal should be completed and award medals
+      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+      if (wasCompleted) {
+        await awardMedalForGoalCompletion('learn');
+      }
 
-      // Add XP to user profile
-      await addXP(xpChange);
+      // Sync profile XP to match the sum of all goal XP
+      await syncProfileXPToGoals();
 
       setPendingOperations(prev => {
         const updated = new Set(prev);
@@ -242,9 +310,13 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         return updated;
       });
 
-      if (!wasCompleted && (goal.xpEarned + xpChange) % 100 === 0) {
-        setShowLevelUp(true);
-        setTimeout(() => setShowLevelUp(false), 3000);
+      // Clear pending XP updates when operation completes
+      if (pendingXPUpdates[goalId] !== undefined) {
+        setPendingXPUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Error updating curriculum item:', error);
@@ -258,6 +330,11 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         delete updated[goalId];
         return updated;
       });
+      // Revert XP changes on error
+      setPendingXPUpdates(prev => ({
+        ...prev,
+        [goalId]: currentPendingXP
+      }));
     }
   };
 
@@ -380,8 +457,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
   const LessonCard = ({ goal, item, index }: { goal: LearnGoal; item: CurriculumItem; index: number }) => {
     const flipValue = useSharedValue(0);
     const scale = useSharedValue(1);
-    const xpOpacity = useSharedValue(0);
-    const xpTranslateY = useSharedValue(0);
 
     const frontAnimatedStyle = useAnimatedStyle(() => {
       const rotateY = interpolate(flipValue.value, [0, 1], [0, 180]);
@@ -412,11 +487,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       };
     });
 
-    const xpAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: xpOpacity.value,
-      transform: [{ translateY: xpTranslateY.value }],
-    }));
-
     const handlePress = () => {
       if (!item.completed) {
         flipValue.value = withTiming(1, { duration: 600 });
@@ -425,12 +495,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
           withSpring(0.95, { duration: 100 }),
           withSpring(1, { duration: 100 })
         );
-
-        xpOpacity.value = withTiming(1, { duration: 200 });
-        xpTranslateY.value = withTiming(-40, { duration: 1000 }, () => {
-          xpOpacity.value = withTiming(0, { duration: 200 });
-          xpTranslateY.value = 0;
-        });
       }
 
       runOnJS(toggleCurriculumItem)(goal.id, item.id);
@@ -499,9 +563,11 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                   {item.title}
                 </Text>
               </View>
-              <View style={styles.quizIcon}>
-                <Award size={16} color={item.completed ? '#FFD700' : Colors.gray400} />
-              </View>
+              {item.completed && (
+                <View style={styles.quizIcon}>
+                  <Award size={16} color='#FFD700' />
+                </View>
+              )}
             </Animated.View>
 
             {item.completed && (
@@ -515,46 +581,82 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.removeButton}
-            onPress={() => handleDeleteItem(goal.id, item.id, item.title)}
-          >
-            <Trash2 size={16} color={Colors.gray400} />
-          </TouchableOpacity>
+          {!item.completed && (
+            <TouchableOpacity 
+              style={styles.removeButton}
+              onPress={() => handleDeleteItem(goal.id, item.id, item.title)}
+            >
+              <Trash2 size={16} color={Colors.gray400} />
+            </TouchableOpacity>
+          )}
         </View>
-
-        <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpAnimationText}>+5 XP</Text>
-        </Animated.View>
       </View>
     );
   };
 
+  // Use the goals passed as props (already filtered by the parent component)
+  const sortedGoals = goals;
+
   return (
     <View style={styles.container}>
-      {showLevelUp && (
-        <Animated.View style={styles.levelUpBanner}>
-          <TrendingUp size={24} color={Colors.white} />
-          <Text style={styles.levelUpText}>Level Up!</Text>
-        </Animated.View>
-      )}
-
       <ScrollView showsVerticalScrollIndicator={false}>
-        {goals.map((goal) => {
+        {sortedGoals.map((goal) => {
           const LearnGoal = goal as unknown as LearnGoal;
           const progress = getProgress(goal);
           const curriculumItems = pendingUpdates[goal.id] || LearnGoal.curriculumItems || [];
+          const completed = isGoalCompleted(goal);
 
           return (
-            <View key={goal.id} style={styles.LearnCard}>
+            <View key={goal.id} style={[styles.LearnCard, completed && styles.completedGoalCard]}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
                   <View style={styles.titleTextContainer}>
-                    <Text style={styles.LearnTitle}>{goal.title}</Text>
-                    {goal.description && (
-                      <Text style={styles.LearnDescription}>{goal.description}</Text>
+                    {editMode[goal.id] ? (
+                      <>
+                        <TextInput
+                          style={[styles.titleInput, completed && styles.completedGoalTitle]}
+                          value={editedTitles[goal.id] || ''}
+                          onChangeText={(text) => setEditedTitles(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Goal title"
+                          multiline
+                        />
+                        <TextInput
+                          style={[styles.descriptionInput, completed && styles.completedGoalDescription]}
+                          value={editedDescriptions[goal.id] || ''}
+                          onChangeText={(text) => setEditedDescriptions(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Goal description (optional)"
+                          multiline
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.LearnTitle, completed && styles.completedGoalTitle]}>
+                          {editedTitles[goal.id] || goal.title}
+                        </Text>
+                        {(editedDescriptions[goal.id] || goal.description) && (
+                          <Text style={[styles.LearnDescription, completed && styles.completedGoalDescription]}>
+                            {editedDescriptions[goal.id] || goal.description}
+                          </Text>
+                        )}
+                      </>
                     )}
                   </View>
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => toggleEditMode(goal.id)}
+                  >
+                    {editMode[goal.id] ? (
+                      <Check size={20} color={Colors.primary} />
+                    ) : (
+                      <Edit3 size={20} color={Colors.gray600} />
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -616,7 +718,9 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{goal.xpEarned}</Text>
+                  <Text style={styles.statValue}>
+                    {goal.xpEarned + (pendingXPUpdates[goal.id] || 0)}
+                  </Text>
                   <Text style={styles.statLabel}>XP Earned</Text>
                 </View>
                 <View style={styles.statItem}>
@@ -640,30 +744,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-  },
-  levelUpBanner: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  levelUpText: {
-    color: Colors.white,
-    fontSize: 18,
-    fontWeight: '700',
-    marginLeft: 8,
   },
   LearnCard: {
     backgroundColor: Colors.white,
@@ -855,22 +935,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   removeButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  xpAnimation: {
     position: 'absolute',
-    left: 60,
-    top: 20,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    top: 8,
+    right: 8,
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
-  xpAnimationText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: '600',
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray200,
   },
   emptyState: {
     padding: 20,
@@ -884,15 +962,10 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textAlign: 'center',
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray200,
-  },
   statItem: {
     alignItems: 'center',
+    minWidth: '22%',
+    marginBottom: 8,
   },
   statValue: {
     fontSize: 20,
@@ -904,7 +977,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.gray500,
     textTransform: 'uppercase',
-    fontWeight: '600',
   },
   reorderButtonsInline: {
     flexDirection: 'column',
@@ -918,5 +990,43 @@ const styles = StyleSheet.create({
   },
   lessonTitleWithArrows: {
     marginLeft: 0,
+  },
+  completedGoalCard: {
+    opacity: 0.7,
+  },
+  completedGoalTitle: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray500,
+  },
+  completedGoalDescription: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray400,
+  },
+  editButton: {
+    padding: 8,
+  },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.gray900,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+  },
+  descriptionInput: {
+    fontSize: 14,
+    color: Colors.gray600,
+    lineHeight: 20,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+    minHeight: 24,
   },
 });

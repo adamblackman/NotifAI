@@ -66,22 +66,10 @@ export default function AchievementsScreen() {
   const Icon = config.icon;
   const medals = profile.medals[category as keyof typeof profile.medals] || [];
 
-  // Calculate current completions for this category
+  // Calculate completed goals for this category
+  const { isGoalCompleted } = useGoals();
   const categoryGoals = goals.filter(goal => goal.category === category);
-  const totalCompletions = categoryGoals.reduce((total, goal) => {
-    if (category === 'habit') {
-      return total + ((goal as any).completedDates?.length || 0);
-    } else if (category === 'project') {
-      const tasks = (goal as any).tasks || [];
-      return total + tasks.filter((task: any) => task.completed).length;
-    } else if (category === 'learn') {
-      const items = (goal as any).curriculumItems || [];
-      return total + items.filter((item: any) => item.completed).length;
-    } else if (category === 'save') {
-      return total + ((goal as any).SaveDates?.length || 0);
-    }
-    return total;
-  }, 0);
+  const totalCompletions = categoryGoals.filter(goal => isGoalCompleted(goal)).length;
 
   const renderAchievement = (medalType: keyof typeof achievementThresholds) => {
     const threshold = achievementThresholds[medalType];
@@ -106,12 +94,14 @@ export default function AchievementsScreen() {
               {medalType.charAt(0).toUpperCase() + medalType.slice(1)} Medal
             </Text>
             <Text style={styles.medalDescription}>
-              Complete {threshold} {category === 'habit' ? 'habit days' : 
-                      category === 'project' ? 'tasks' :
-                      category === 'learn' ? 'lessons' :
-                      'save days'}
+              Complete {threshold} {category === 'habit' ? 'habit goals' : 
+                      category === 'project' ? 'project goals' :
+                      category === 'learn' ? 'learn goals' :
+                      'save goals'}
             </Text>
-            <Text style={styles.xpReward}>+{xpReward.toLocaleString()} XP</Text>
+            {!earned && (
+              <Text style={styles.xpReward}>+{xpReward.toLocaleString()} XP</Text>
+            )}
           </View>
           {earned && (
             <View style={styles.earnedBadge}>
@@ -168,10 +158,10 @@ export default function AchievementsScreen() {
             <Text style={styles.summaryTitle}>Your Progress</Text>
             <Text style={styles.summaryText}>
               You've completed {totalCompletions} {
-                category === 'habit' ? 'habit days' : 
-                category === 'project' ? 'tasks' :
-                category === 'learn' ? 'lessons' :
-                'save days'
+                category === 'habit' ? 'habit goals' : 
+                category === 'project' ? 'project goals' :
+                category === 'learn' ? 'learn goals' :
+                'save goals'
               } in this category.
             </Text>
             <Text style={styles.summarySubtext}>

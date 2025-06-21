@@ -46,7 +46,7 @@ const achievementThresholds = {
 };
 
 export default function ProfileScreen() {
-  const { profile, getLevelProgress, getXPForNextLevel, goalsXPBreakdown, refetch } = useProfile();
+  const { profile, getLevelProgress, getXPForNextLevel, goalsXPBreakdown, achievementXP, refetch } = useProfile();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -56,6 +56,24 @@ export default function ProfileScreen() {
 
   const handleMedalPress = (category: string) => {
     router.push(`/achievements/${category}`);
+  };
+
+  const getHighestMedalColor = () => {
+    const allMedals = Object.values(profile.medals).flat();
+    const medalPriority = { diamond: 4, gold: 3, silver: 2, bronze: 1 };
+    
+    let highestMedal = null;
+    let highestPriority = 0;
+    
+    for (const medal of allMedals) {
+      const priority = medalPriority[medal as keyof typeof medalPriority] || 0;
+      if (priority > highestPriority) {
+        highestPriority = priority;
+        highestMedal = medal;
+      }
+    }
+    
+    return highestMedal ? medalColors[highestMedal as keyof typeof medalColors] : Colors.primary;
   };
 
   const renderMedalShelf = (category: string, medals: string[]) => (
@@ -111,6 +129,18 @@ export default function ProfileScreen() {
             </View>
           );
         })}
+        
+        {achievementXP > 0 && (
+          <View style={styles.xpBreakdownItem}>
+            <View style={styles.xpBreakdownLeft}>
+              <View style={[styles.xpBreakdownIcon, { backgroundColor: `${getHighestMedalColor()}15` }]}>
+                <Award size={16} color={getHighestMedalColor()} />
+              </View>
+              <Text style={styles.xpBreakdownLabel}>Achievements</Text>
+            </View>
+            <Text style={styles.xpBreakdownValue}>{achievementXP.toLocaleString()} XP</Text>
+          </View>
+        )}
         
         {profile.xp === 0 && (
           <Text style={styles.noXPText}>Complete goals to start earning XP!</Text>

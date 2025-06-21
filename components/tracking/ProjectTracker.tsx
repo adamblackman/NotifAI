@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown, Edit3, Check } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -22,9 +22,56 @@ interface ProjectTrackerProps {
 export function ProjectTracker({ goals }: ProjectTrackerProps) {
   const [newTaskTitles, setNewTaskTitles] = useState<Record<string, string>>({});
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, Task[]>>({});
+  const [pendingXPUpdates, setPendingXPUpdates] = useState<Record<string, number>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const { updateGoal, deleteGoal } = useGoals();
-  const { addXP, checkAndAwardMedals } = useProfile();
+  const [editMode, setEditMode] = useState<Record<string, boolean>>({});
+  const [editedTitles, setEditedTitles] = useState<Record<string, string>>({});
+  const [editedDescriptions, setEditedDescriptions] = useState<Record<string, string>>({});
+  const { updateGoal, deleteGoal, checkAndCompleteGoal, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
+  const { syncProfileXPToGoals, awardMedalForGoalCompletion } = useProfile();
+
+  const toggleEditMode = (goalId: string) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    const isCurrentlyEditing = editMode[goalId];
+    
+    if (isCurrentlyEditing) {
+      // Save changes
+      saveGoalEdits(goalId);
+    } else {
+      // Enter edit mode - populate current values
+      setEditedTitles(prev => ({
+        ...prev,
+        [goalId]: goal.title
+      }));
+      setEditedDescriptions(prev => ({
+        ...prev,
+        [goalId]: goal.description || ''
+      }));
+    }
+    
+    setEditMode(prev => ({
+      ...prev,
+      [goalId]: !isCurrentlyEditing
+    }));
+  };
+
+  const saveGoalEdits = async (goalId: string) => {
+    const newTitle = editedTitles[goalId];
+    const newDescription = editedDescriptions[goalId];
+    
+    if (!newTitle?.trim()) return;
+
+    try {
+      await updateGoal(goalId, {
+        title: newTitle.trim(),
+        description: newDescription?.trim() || undefined
+      });
+    } catch (error) {
+      console.error('Error updating goal:', error);
+    }
+  };
 
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
@@ -117,6 +164,16 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         updated.delete(operationId);
         return updated;
       });
+
+      // Clear pending XP updates when operation completes
+      if (pendingXPUpdates[goalId] !== undefined) {
+        setPendingXPUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
+      }
+
     } catch (error) {
       console.error('Error adding task:', error);
       setPendingOperations(prev => {
@@ -198,9 +255,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       return a.completed ? 1 : -1;
     });
 
-    const wasCompleted = baseTasks.find((t: Task) => t.id === taskId)?.completed;
-    const xpChange = wasCompleted ? -5 : 5;
-
     const operationId = `toggle-${goalId}-${taskId}-${Date.now()}`;
 
     setPendingOperations(prev => new Set([...prev, operationId]));
@@ -209,21 +263,48 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       [goalId]: sortedTasks
     }));
 
+    // Calculate total XP as 5 × completed tasks
+    const completedCount = sortedTasks.filter((task: Task) => task.completed).length;
+    const newXpEarned = completedCount * 5;
+    const xpChange = newXpEarned - goal.xpEarned;
+
+    // Track XP changes optimistically
+    const currentPendingXP = pendingXPUpdates[goalId] || 0;
+    setPendingXPUpdates(prev => ({
+      ...prev,
+      [goalId]: currentPendingXP + xpChange
+    }));
+
     try {
-      await updateGoal(goalId, {
+      const updatedGoal = await updateGoal(goalId, {
         ...goal,
         tasks: sortedTasks,
-        xpEarned: goal.xpEarned + xpChange,
+        xpEarned: newXpEarned,
       });
       
-      // Add XP to user profile
-      await addXP(xpChange);
+      // Check if goal should be completed and award medals
+      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+      if (wasCompleted) {
+        await awardMedalForGoalCompletion('project');
+      }
+      
+      // Sync profile XP to match the sum of all goal XP
+      await syncProfileXPToGoals();
       
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
         return updated;
       });
+
+      // Clear pending XP updates when operation completes
+      if (pendingXPUpdates[goalId] !== undefined) {
+        setPendingXPUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
+      }
     } catch (error) {
       console.error('Error updating task:', error);
       setPendingOperations(prev => {
@@ -236,6 +317,11 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
         delete updated[goalId];
         return updated;
       });
+      // Revert XP changes on error
+      setPendingXPUpdates(prev => ({
+        ...prev,
+        [goalId]: currentPendingXP
+      }));
     }
   };
 
@@ -256,8 +342,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       ],
     );
   };
-
-
 
   const reorderTasks = async (goalId: string, fromIndex: number, toIndex: number) => {
     const goal = goals.find(g => g.id === goalId);
@@ -325,8 +409,6 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
     onReorder: (fromIndex: number, toIndex: number) => void;
   }) => {
     const scale = useSharedValue(1);
-    const xpOpacity = useSharedValue(0);
-    const xpTranslateY = useSharedValue(0);
     
     const projectGoal = goal as unknown as ProjectGoal;
     const allTasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
@@ -337,27 +419,11 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
       transform: [{ scale: scale.value }],
     }));
 
-    const xpAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: xpOpacity.value,
-      transform: [{ translateY: xpTranslateY.value }],
-    }));
-
     const handlePress = () => {
       scale.value = withSequence(
         withSpring(0.95, { duration: 100 }),
         withSpring(1, { duration: 100 })
       );
-
-      if (!task.completed) {
-        xpOpacity.value = withTiming(1, { duration: 200 });
-        xpTranslateY.value = withTiming(-30, { 
-          duration: 800, 
-          easing: Easing.out(Easing.cubic) 
-        }, () => {
-          xpOpacity.value = withTiming(0, { duration: 200 });
-          xpTranslateY.value = 0;
-        });
-      }
 
       runOnJS(toggleTask)(goal.id, task.id);
     };
@@ -401,39 +467,82 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
             {task.title}
           </Text>
           
-          <TouchableOpacity 
-            style={styles.removeTaskButton}
-            onPress={() => handleDeleteTask(goal.id, task.id, task.title)}
-          >
-            <Trash2 size={16} color={Colors.gray400} />
-          </TouchableOpacity>
+          {!task.completed && (
+            <TouchableOpacity 
+              style={styles.removeTaskButton}
+              onPress={() => handleDeleteTask(goal.id, task.id, task.title)}
+            >
+              <Trash2 size={16} color={Colors.gray400} />
+            </TouchableOpacity>
+          )}
         </View>
-        
-        <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+5 XP</Text>
-        </Animated.View>
       </View>
     );
   };
 
+  // Use the goals passed as props (already filtered by the parent component)
+  const sortedGoals = goals;
+
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {goals.map((goal) => {
+        {sortedGoals.map((goal) => {
           const projectGoal = goal as unknown as ProjectGoal;
           const progress = getProjectProgress(goal);
           const tasks = pendingUpdates[goal.id] || projectGoal.tasks || [];
+          const completed = isGoalCompleted(goal);
 
           return (
-            <View key={goal.id} style={styles.projectCard}>
+            <View key={goal.id} style={[styles.projectCard, completed && styles.completedCard]}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
                   <View style={styles.titleTextContainer}>
-                    <Text style={styles.projectTitle}>{goal.title}</Text>
-                    {goal.description && (
-                      <Text style={styles.projectDescription}>{goal.description}</Text>
+                    {editMode[goal.id] ? (
+                      <>
+                        <TextInput
+                          style={[styles.titleInput, completed && styles.completedTitle]}
+                          value={editedTitles[goal.id] || ''}
+                          onChangeText={(text) => setEditedTitles(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Project title"
+                          multiline
+                        />
+                        <TextInput
+                          style={[styles.descriptionInput, completed && styles.completedDescription]}
+                          value={editedDescriptions[goal.id] || ''}
+                          onChangeText={(text) => setEditedDescriptions(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Project description (optional)"
+                          multiline
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.projectTitle, completed && styles.completedTitle]}>
+                          {editedTitles[goal.id] || goal.title}
+                        </Text>
+                        {(editedDescriptions[goal.id] || goal.description) && (
+                          <Text style={[styles.projectDescription, completed && styles.completedDescription]}>
+                            {editedDescriptions[goal.id] || goal.description}
+                          </Text>
+                        )}
+                      </>
                     )}
                   </View>
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => toggleEditMode(goal.id)}
+                  >
+                    {editMode[goal.id] ? (
+                      <Check size={20} color={Colors.primary} />
+                    ) : (
+                      <Edit3 size={20} color={Colors.gray600} />
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -501,7 +610,9 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{goal.xpEarned}</Text>
+                  <Text style={styles.statValue}>
+                    {goal.xpEarned + (pendingXPUpdates[goal.id] || 0)}
+                  </Text>
                   <Text style={styles.statLabel}>XP Earned</Text>
                 </View>
                 <View style={styles.statItem}>
@@ -669,26 +780,9 @@ const styles = StyleSheet.create({
   removeTaskButton: {
     padding: 8,
   },
-  xpAnimation: {
-    position: 'absolute',
-    left: 40,
-    top: 8,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  xpText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   emptyState: {
-    padding: 20,
+    paddingVertical: 32,
     alignItems: 'center',
-    backgroundColor: Colors.gray50,
-    borderRadius: 12,
-    marginTop: 8,
   },
   emptyStateText: {
     fontSize: 14,
@@ -716,5 +810,43 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textTransform: 'uppercase',
     fontWeight: '600',
+  },
+  completedCard: {
+    opacity: 0.7,
+  },
+  completedTitle: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray500,
+  },
+  completedDescription: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray400,
+  },
+  editButton: {
+    padding: 8,
+  },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.gray900,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+  },
+  descriptionInput: {
+    fontSize: 14,
+    color: Colors.gray600,
+    lineHeight: 20,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+    minHeight: 24,
   },
 });

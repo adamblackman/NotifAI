@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus } from 'lucide-react-native';
+import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { 
   useSharedValue, 
@@ -25,13 +25,86 @@ const dayWidth = (width - 64) / 7;
 
 export function SaveTracker({ goals }: SaveTrackerProps) {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [pendingUpdates, setPendingUpdates] = useState<Record<string, { SaveDates: string[], currentAmount: number }>>({});
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, { SaveDates: string[]; currentAmount: number }>>({});
+  const [pendingXPUpdates, setPendingXPUpdates] = useState<Record<string, number>>({});
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set());
-  const [manualAmount, setManualAmount] = useState<Record<string, string>>({});
   const [showDatePicker, setShowDatePicker] = useState<Record<string, boolean>>({});
-  const { updateGoal, deleteGoal } = useGoals();
-  const { addXP, checkAndAwardMedals } = useProfile();
+  const [manualAmount, setManualAmount] = useState<Record<string, string>>({});
+  const [editMode, setEditMode] = useState<Record<string, boolean>>({});
+  const [editedTitles, setEditedTitles] = useState<Record<string, string>>({});
+  const [editedDescriptions, setEditedDescriptions] = useState<Record<string, string>>({});
+  const [editedTargetAmounts, setEditedTargetAmounts] = useState<Record<string, string>>({});
+  const [editedDeadlines, setEditedDeadlines] = useState<Record<string, Date>>({});
+  const { updateGoal, deleteGoal, checkAndCompleteGoal, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
+  const { syncProfileXPToGoals, awardMedalForGoalCompletion } = useProfile();
+
+  const toggleEditMode = (goalId: string) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    const isCurrentlyEditing = editMode[goalId];
+    
+    if (isCurrentlyEditing) {
+      // Save changes
+      saveGoalEdits(goalId);
+    } else {
+      // Enter edit mode - populate current values
+      const saveGoal = goal as unknown as SaveGoal;
+      setEditedTitles(prev => ({
+        ...prev,
+        [goalId]: goal.title
+      }));
+      setEditedDescriptions(prev => ({
+        ...prev,
+        [goalId]: goal.description || ''
+      }));
+      setEditedTargetAmounts(prev => ({
+        ...prev,
+        [goalId]: saveGoal.targetAmount?.toString() || ''
+      }));
+      setEditedDeadlines(prev => ({
+        ...prev,
+        [goalId]: saveGoal.deadline ? new Date(saveGoal.deadline) : (saveGoal.targetDate ? new Date(saveGoal.targetDate) : new Date())
+      }));
+    }
+    
+    setEditMode(prev => ({
+      ...prev,
+      [goalId]: !isCurrentlyEditing
+    }));
+  };
+
+  const saveGoalEdits = async (goalId: string) => {
+    const newTitle = editedTitles[goalId];
+    const newDescription = editedDescriptions[goalId];
+    const newTargetAmount = editedTargetAmounts[goalId];
+    const newDeadline = editedDeadlines[goalId];
+    
+    if (!newTitle?.trim()) return;
+
+    try {
+      const updateData: any = {
+        title: newTitle.trim(),
+        description: newDescription?.trim() || undefined
+      };
+
+      if (newTargetAmount?.trim()) {
+        const targetAmountNum = parseFloat(newTargetAmount.trim());
+        if (!isNaN(targetAmountNum) && targetAmountNum > 0) {
+          updateData.targetAmount = targetAmountNum;
+        }
+      }
+
+      if (newDeadline) {
+        updateData.deadline = newDeadline;
+        updateData.targetDate = newDeadline;
+      }
+
+      await updateGoal(goalId, updateData);
+    } catch (error) {
+      console.error('Error updating goal:', error);
+    }
+  };
 
   useEffect(() => {
     Object.keys(pendingUpdates).forEach(goalId => {
@@ -86,7 +159,10 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
 
   const getTimeRemaining = (goal: Goal) => {
     const SaveGoal = goal as unknown as SaveGoal;
-    const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
+    
+    // Use edited deadline if available, otherwise use original
+    const editedDeadline = editedDeadlines[goal.id];
+    const targetDate = editedDeadline || SaveGoal.targetDate || SaveGoal.deadline;
     if (!targetDate) return null;
     
     const targetDateObj = new Date(targetDate);
@@ -105,7 +181,10 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
 
   const isOverdue = (goal: Goal) => {
     const SaveGoal = goal as unknown as SaveGoal;
-    const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
+    
+    // Use edited deadline if available, otherwise use original
+    const editedDeadline = editedDeadlines[goal.id];
+    const targetDate = editedDeadline || SaveGoal.targetDate || SaveGoal.deadline;
     if (!targetDate) return false;
     
     const targetDateObj = new Date(targetDate);
@@ -115,14 +194,20 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
 
   const getDailySaveAmount = (goal: Goal) => {
     const SaveGoal = goal as unknown as SaveGoal;
-    const targetDate = SaveGoal.targetDate || SaveGoal.deadline;
-    const targetAmount = SaveGoal.targetAmount || 0;
     
-    if (!targetDate) return 5; // Default amount
+    // Use edited deadline if available, otherwise use original
+    const editedDeadline = editedDeadlines[goal.id];
+    const targetDate = editedDeadline || SaveGoal.targetDate || SaveGoal.deadline;
     
-    const now = new Date();
+    // Use edited target amount if available, otherwise use original
+    const editedAmount = editedTargetAmounts[goal.id];
+    const targetAmount = editedAmount ? parseFloat(editedAmount) : (SaveGoal.targetAmount || 0);
+    
+    if (!targetDate || isNaN(targetAmount) || targetAmount <= 0) return 5; // Default amount
+    
+    const creationDate = new Date(goal.createdAt);
     const targetDateObj = new Date(targetDate);
-    const diffTime = targetDateObj.getTime() - now.getTime();
+    const diffTime = targetDateObj.getTime() - creationDate.getTime();
     const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     
     return Math.max(1, Math.floor(targetAmount / diffDays));
@@ -179,22 +264,27 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     
     if (SaveDates.length === 0) return 0;
 
-    const sortedDates = SaveDates.sort((a: string, b: string) => b.localeCompare(a));
-    let streak = 0;
-    let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
+    // Check if today is selected - if not, streak is 0
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
     
-    for (const dateStr of sortedDates) {
-      const date = new Date(dateStr);
-      date.setHours(0, 0, 0, 0);
-      const diffTime = currentDate.getTime() - date.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (!SaveDates.includes(todayStr)) {
+      return 0;
+    }
+
+    // Today is selected, count backwards for consecutive days
+    let streak = 1; // Start with 1 for today
+    let checkDate = new Date(today);
+    
+    while (true) {
+      checkDate.setDate(checkDate.getDate() - 1); // Go back one day
+      const checkDateStr = checkDate.toISOString().split('T')[0];
       
-      if (diffDays === streak || (streak === 0 && diffDays <= 1)) {
+      if (SaveDates.includes(checkDateStr)) {
         streak++;
-        currentDate = new Date(date.getTime() - 24 * 60 * 60 * 1000);
       } else {
-        break;
+        break; // End of consecutive streak
       }
     }
     
@@ -234,8 +324,50 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
   };
 
   const calculateStreakXP = (streak: number) => {
-    if (streak === 0) return 1;
-    return Math.max(1, Math.floor(Math.log2(streak + 1)));
+    // User's specified XP system:
+    // +1 for each day selected
+    // +2 for NEW day when 2 day streak  
+    // up to max +5 for five day streak and beyond
+    if (streak <= 1) return 1;
+    if (streak === 2) return 2;
+    if (streak === 3) return 3;
+    if (streak === 4) return 4;
+    return 5; // Max 5 XP for 5+ day streaks
+  };
+
+  const calculatePreviousStreakXP = (SaveDates: string[], removedDate: string) => {
+    // Calculate what the XP was for the day being removed
+    // by simulating the streak without that date
+    const sortedDates = SaveDates
+      .filter(date => date !== removedDate)
+      .sort();
+    
+    const removedIndex = SaveDates.indexOf(removedDate);
+    if (removedIndex === -1) return 1; // Default if not found
+    
+    // Find the streak length at the time this date was added
+    let streakAtTime = 1;
+    const removedDateObj = new Date(removedDate);
+    
+    // Count consecutive days leading up to (and including) the removed date
+    const allSortedDates = [...SaveDates].sort();
+    const currentIndex = allSortedDates.indexOf(removedDate);
+    
+    if (currentIndex > 0) {
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        const prevDate = new Date(allSortedDates[i]);
+        const currDate = new Date(allSortedDates[i + 1]);
+        const diffDays = Math.floor((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) {
+          streakAtTime++;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    return calculateStreakXP(streakAtTime);
   };
 
   const toggleSaveDate = async (goalId: string, date: Date) => {
@@ -263,7 +395,11 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       newCurrentAmount += dailyAmount;
     }
 
-    setPendingOperations(prev => new Set([...prev, operationId]));
+    // Calculate total XP as 1 × number of completed days
+    const newXpEarned = newSaveDates.length * 1;
+    const xpChange = newXpEarned - goal.xpEarned;
+
+    // Update UI immediately for responsiveness
     setPendingUpdates(prev => ({
       ...prev,
       [goalId]: {
@@ -272,29 +408,50 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       }
     }));
 
-    // Calculate streak and XP
-    const currentStreak = getCurrentStreakCount({ ...goal, SaveDates: newSaveDates } as Goal);
-    const xpGained = calculateStreakXP(currentStreak);
-    const xpChange = isCompleted ? -xpGained : xpGained;
-    const newXpEarned = goal.xpEarned + xpChange;
+    // Track XP changes optimistically for immediate UI update
+    const currentPendingXP = pendingXPUpdates[goalId] || 0;
+    setPendingXPUpdates(prev => ({
+      ...prev,
+      [goalId]: currentPendingXP + xpChange
+    }));
 
+    // Track pending operation
+    setPendingOperations(prev => new Set([...prev, operationId]));
+
+    // Do async operations in background without blocking UI
     try {
-      await updateGoal(goalId, {
+      const updatedGoal = await updateGoal(goalId, {
         SaveDates: newSaveDates,
         currentAmount: Math.max(0, newCurrentAmount),
         xpEarned: newXpEarned,
       } as Partial<SaveGoal>);
       
-      // Add XP to user profile
-      await addXP(xpChange);
+      // Check if goal should be completed and award medals
+      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+      if (wasCompleted) {
+        await awardMedalForGoalCompletion('save');
+      }
+      
+      // Sync profile XP to match the sum of all goal XP
+      await syncProfileXPToGoals();
       
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
         return updated;
       });
+
+      // Clear pending XP updates when operation completes
+      if (pendingXPUpdates[goalId] !== undefined) {
+        setPendingXPUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
+      }
     } catch (error) {
       console.error('Error updating Save:', error);
+      // Revert changes on error
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -305,6 +462,10 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
         delete updated[goalId];
         return updated;
       });
+      setPendingXPUpdates(prev => ({
+        ...prev,
+        [goalId]: currentPendingXP
+      }));
     }
   };
 
@@ -329,9 +490,18 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     }));
 
     try {
-      await updateGoal(goalId, {
+      const updatedGoal = await updateGoal(goalId, {
         currentAmount: newAmount,
       } as Partial<SaveGoal>);
+      
+      // Check if goal should be completed and award medals
+      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+      if (wasCompleted) {
+        await awardMedalForGoalCompletion('save');
+      }
+      
+      // Sync profile XP to match the sum of all goal XP
+      await syncProfileXPToGoals();
       
       setPendingOperations(prev => {
         const updated = new Set(prev);
@@ -357,6 +527,12 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     setShowDatePicker(prev => ({ ...prev, [goalId]: false }));
     
     if (selectedDate) {
+      // Update optimistically
+      setEditedDeadlines(prev => ({
+        ...prev,
+        [goalId]: selectedDate
+      }));
+
       try {
         await updateGoal(goalId, {
           deadline: selectedDate,
@@ -364,11 +540,15 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
         } as Partial<SaveGoal>);
       } catch (error) {
         console.error('Error updating deadline:', error);
+        // Revert on error
+        setEditedDeadlines(prev => {
+          const updated = { ...prev };
+          delete updated[goalId];
+          return updated;
+        });
       }
     }
   };
-
-
 
   const getFlameIntensity = (streak: number) => {
     if (streak === 0) return { color: Colors.gray400, size: 20 };
@@ -388,6 +568,14 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     return date.toDateString() === today.toDateString();
   };
 
+  const isBeforeCreation = (goal: Goal, date: Date) => {
+    const creationDate = new Date(goal.createdAt);
+    creationDate.setHours(0, 0, 0, 0);
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    return compareDate < creationDate;
+  };
+
   const isFutureDate = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -399,43 +587,26 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
   const DayTile = ({ goal, date }: { goal: Goal; date: Date }) => {
     const isCompleted = isSaveCompletedOnDate(goal, date);
     const scale = useSharedValue(1);
-    const xpOpacity = useSharedValue(0);
-    const xpTranslateY = useSharedValue(0);
     const isTodayDate = isToday(date);
     const isCurrentMonthDate = isCurrentMonth(date);
     const isFuture = isFutureDate(date);
+    const isBeforeGoalCreation = isBeforeCreation(goal, date);
 
     const animatedStyle = useAnimatedStyle(() => ({
       transform: [{ scale: scale.value }],
     }));
 
-    const xpAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: xpOpacity.value,
-      transform: [{ translateY: xpTranslateY.value }],
-    }));
-
     const handlePress = () => {
-      if (!isCurrentMonthDate || isFuture) return;
+      if (!isCurrentMonthDate || isFuture || isBeforeGoalCreation) return;
+
+      const SaveGoal = goal as unknown as SaveGoal;
+      const currentSaveDates = pendingUpdates[goal.id]?.SaveDates || SaveGoal.SaveDates || [];
+      const dateStr = date.toISOString().split('T')[0];
 
       scale.value = withSequence(
         withSpring(0.9, { duration: 100 }),
         withSpring(1, { duration: 100 })
       );
-
-      if (!isCompleted) {
-        const currentStreak = getCurrentStreakCount(goal);
-        const xpGained = calculateStreakXP(currentStreak + 1);
-        const dailyAmount = getDailySaveAmount(goal);
-        
-        xpOpacity.value = withTiming(1, { duration: 200 });
-        xpTranslateY.value = withTiming(-40, { 
-          duration: 1000, 
-          easing: Easing.out(Easing.cubic) 
-        }, () => {
-          xpOpacity.value = withTiming(0, { duration: 200 });
-          xpTranslateY.value = 0;
-        });
-      }
 
       runOnJS(toggleSaveDate)(goal.id, date);
     };
@@ -444,10 +615,10 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       <View style={styles.dayContainer}>
         <TouchableOpacity 
           onPress={handlePress} 
-          disabled={!isCurrentMonthDate || isFuture}
+          disabled={!isCurrentMonthDate || isFuture || isBeforeGoalCreation}
           style={[
             styles.dayTouchable,
-            (!isCurrentMonthDate || isFuture) && styles.disabledTouchable
+            (!isCurrentMonthDate || isFuture || isBeforeGoalCreation) && styles.disabledTouchable
           ]}
         >
           <Animated.View style={[
@@ -456,6 +627,7 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
             isTodayDate && styles.todayTile,
             !isCurrentMonthDate && styles.otherMonthTile,
             isFuture && styles.futureTile,
+            isBeforeGoalCreation && styles.beforeCreationTile,
             animatedStyle
           ]}>
             <Text style={[
@@ -464,16 +636,13 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
               isTodayDate && styles.todayDayNumber,
               !isCurrentMonthDate && styles.otherMonthDayNumber,
               isFuture && styles.futureDayNumber,
+              isBeforeGoalCreation && styles.beforeCreationDayNumber,
               isTodayDate && isCompleted && styles.todayCompletedDayNumber
             ]}>
               {date.getDate()}
             </Text>
           </Animated.View>
         </TouchableOpacity>
-        
-        <Animated.View style={[styles.xpAnimation, xpAnimatedStyle]}>
-          <Text style={styles.xpText}>+{calculateStreakXP(getCurrentStreakCount(goal) + 1)} XP / +{formatCurrency(getDailySaveAmount(goal))}</Text>
-        </Animated.View>
       </View>
     );
   };
@@ -482,52 +651,89 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  const getAvailableMonths = (goal: Goal) => {
+  const canNavigateLeft = (goal: Goal) => {
     const goalCreatedAt = new Date(goal.createdAt);
-    const today = new Date();
-    const months = [];
+    const currentDisplayMonth = getMonthDates(displayMonthOffset).month;
     
-    let currentMonth = new Date(goalCreatedAt.getFullYear(), goalCreatedAt.getMonth(), 1);
+    const goalCreationMonth = new Date(goalCreatedAt.getFullYear(), goalCreatedAt.getMonth(), 1);
+    const displayMonth = new Date(currentDisplayMonth.getFullYear(), currentDisplayMonth.getMonth(), 1);
     
-    while (currentMonth <= today) {
-      const monthsFromNow = (currentMonth.getFullYear() - today.getFullYear()) * 12 + 
-                           (currentMonth.getMonth() - today.getMonth());
-      
-      if (monthsFromNow < 0) {
-        months.push({
-          offset: monthsFromNow,
-          name: getMonthName(currentMonth),
-          month: new Date(currentMonth)
-        });
-      }
-      
-      currentMonth.setMonth(currentMonth.getMonth() + 1);
-    }
-    
-    return months.reverse();
+    return displayMonth > goalCreationMonth;
   };
+
+  const canNavigateRight = () => {
+    const today = new Date();
+    const currentDisplayMonth = getMonthDates(displayMonthOffset).month;
+    
+    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const displayMonth = new Date(currentDisplayMonth.getFullYear(), currentDisplayMonth.getMonth(), 1);
+    
+    return displayMonth < currentMonth;
+  };
+
+  const navigateMonth = (direction: 'left' | 'right') => {
+    if (direction === 'left') {
+      setSelectedMonth(prev => (prev || 0) - 1);
+    } else {
+      setSelectedMonth(prev => (prev || 0) + 1);
+    }
+  };
+
+  // Use the goals passed as props (already filtered by the parent component)
+  const sortedGoals = goals;
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {goals.map((goal) => {
+        {sortedGoals.map((goal) => {
           const SaveGoal = goal as unknown as SaveGoal;
           const progress = getProgress(goal);
           const timeRemaining = getTimeRemaining(goal);
           const currentStreak = getCurrentStreakCount(goal);
           const longestStreak = getLongestStreakCount(goal);
           const flameProps = getFlameIntensity(currentStreak);
-          const availableMonths = getAvailableMonths(goal);
           const dailyAmount = getDailySaveAmount(goal);
+          const completed = isGoalCompleted(goal);
 
           return (
-            <View key={goal.id} style={styles.SaveCard}>
+            <View key={goal.id} style={[styles.SaveCard, completed && styles.completedCard]}>
               <View style={styles.cardHeader}>
                 <View style={styles.titleContainer}>
                   <View style={styles.titleTextContainer}>
-                    <Text style={styles.SaveTitle}>{goal.title}</Text>
-                    {goal.description && (
-                      <Text style={styles.SaveDescription}>{goal.description}</Text>
+                    {editMode[goal.id] ? (
+                      <>
+                        <TextInput
+                          style={[styles.titleInput, completed && styles.completedTitle]}
+                          value={editedTitles[goal.id] || ''}
+                          onChangeText={(text) => setEditedTitles(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Save goal title"
+                          multiline
+                        />
+                        <TextInput
+                          style={[styles.descriptionInput, completed && styles.completedDescription]}
+                          value={editedDescriptions[goal.id] || ''}
+                          onChangeText={(text) => setEditedDescriptions(prev => ({
+                            ...prev,
+                            [goal.id]: text
+                          }))}
+                          placeholder="Save goal description (optional)"
+                          multiline
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.SaveTitle, completed && styles.completedTitle]}>
+                          {editedTitles[goal.id] || goal.title}
+                        </Text>
+                        {(editedDescriptions[goal.id] || goal.description) && (
+                          <Text style={[styles.SaveDescription, completed && styles.completedDescription]}>
+                            {editedDescriptions[goal.id] || goal.description}
+                          </Text>
+                        )}
+                      </>
                     )}
                   </View>
                 </View>
@@ -536,6 +742,16 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   <Text style={styles.streakNumber}>{currentStreak}</Text>
                   <Text style={styles.streakLabel}>day streak</Text>
                 </View>
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => toggleEditMode(goal.id)}
+                >
+                  {editMode[goal.id] ? (
+                    <Check size={18} color={Colors.primary} />
+                  ) : (
+                    <Edit3 size={18} color={Colors.gray600} />
+                  )}
+                </TouchableOpacity>
               </View>
 
               <View style={styles.progressSection}>
@@ -543,9 +759,28 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   <Text style={styles.currentAmount}>
                     {formatCurrency(progress.current)}
                   </Text>
-                  <Text style={styles.targetAmount}>
-                    of {formatCurrency(progress.target)}
-                  </Text>
+                  {editMode[goal.id] ? (
+                    <View style={styles.targetAmountEdit}>
+                      <Text style={styles.targetAmountLabel}>of</Text>
+                      <TextInput
+                        style={styles.targetAmountInput}
+                        value={editedTargetAmounts[goal.id] || ''}
+                        onChangeText={(text) => setEditedTargetAmounts(prev => ({
+                          ...prev,
+                          [goal.id]: text
+                        }))}
+                        placeholder="Target amount"
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  ) : (
+                    <Text style={styles.targetAmount}>
+                      of {formatCurrency((() => {
+                        const targetAmount = editedTargetAmounts[goal.id] ? parseFloat(editedTargetAmounts[goal.id]) : progress.target;
+                        return isNaN(targetAmount) ? progress.target : targetAmount;
+                      })())}
+                    </Text>
+                  )}
                 </View>
                 
                 <View style={styles.progressBarContainer}>
@@ -570,14 +805,14 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                       styles.countdownText,
                       isOverdue(goal) && styles.overdueText
                     ]}>
-                      {timeRemaining}
+                      {timeRemaining}, need to save {formatCurrency(dailyAmount)} per day
                     </Text>
                   </TouchableOpacity>
                 )}
 
                 {showDatePicker[goal.id] && (
                   <DateTimePicker
-                    value={SaveGoal.deadline ? new Date(SaveGoal.deadline) : new Date()}
+                    value={editedDeadlines[goal.id] || (SaveGoal.deadline ? new Date(SaveGoal.deadline) : new Date())}
                     mode="date"
                     display="default"
                     onChange={(event, selectedDate) => handleDateChange(goal.id, event, selectedDate)}
@@ -587,9 +822,23 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
 
               <View style={styles.calendarSection}>
                 <View style={styles.calendarHeader}>
+                  <TouchableOpacity 
+                    style={[styles.monthNavButton, !canNavigateLeft(goal) && styles.monthNavButtonDisabled]}
+                    onPress={() => canNavigateLeft(goal) && navigateMonth('left')}
+                    disabled={!canNavigateLeft(goal)}
+                  >
+                    <ChevronLeft size={20} color={canNavigateLeft(goal) ? Colors.gray700 : Colors.gray300} />
+                  </TouchableOpacity>
                   <Text style={styles.monthTitle}>
                     {getMonthName(displayMonth)}
                   </Text>
+                  <TouchableOpacity 
+                    style={[styles.monthNavButton, !canNavigateRight() && styles.monthNavButtonDisabled]}
+                    onPress={() => canNavigateRight() && navigateMonth('right')}
+                    disabled={!canNavigateRight()}
+                  >
+                    <ChevronRight size={20} color={canNavigateRight() ? Colors.gray700 : Colors.gray300} />
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.dayHeaders}>
@@ -646,58 +895,13 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                 </View>
               </View>
 
-              {availableMonths.length > 0 && (
-                <View style={styles.historySection}>
-                  <TouchableOpacity 
-                    style={styles.historyHeader}
-                    onPress={() => setShowHistory(!showHistory)}
-                  >
-                    <Text style={styles.historyTitle}>History</Text>
-                    <ChevronDown 
-                      size={16} 
-                      color={Colors.gray500} 
-                      style={[
-                        styles.historyChevron,
-                        showHistory && styles.historyChevronRotated
-                      ]}
-                    />
-                  </TouchableOpacity>
 
-                  {showHistory && (
-                    <View style={styles.historyList}>
-                      {availableMonths.map((monthData) => (
-                        <TouchableOpacity
-                          key={monthData.offset}
-                          style={styles.historyItem}
-                          onPress={() => {
-                            setSelectedMonth(monthData.offset);
-                            setShowHistory(false);
-                          }}
-                        >
-                          <Text style={styles.historyItemText}>{monthData.name}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      {selectedMonth !== null && (
-                        <TouchableOpacity
-                          style={styles.historyItem}
-                          onPress={() => {
-                            setSelectedMonth(null);
-                            setShowHistory(false);
-                          }}
-                        >
-                          <Text style={[styles.historyItemText, styles.currentMonthText]}>
-                            Current Month
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{goal.xpEarned}</Text>
+                  <Text style={styles.statValue}>
+                    {goal.xpEarned + (pendingXPUpdates[goal.id] || 0)}
+                  </Text>
                   <Text style={styles.statLabel}>XP Earned</Text>
                 </View>
                 <View style={styles.statItem}>
@@ -740,6 +944,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 24,
+    position: 'relative',
   },
   titleContainer: {
     flexDirection: 'row',
@@ -761,12 +966,17 @@ const styles = StyleSheet.create({
     color: Colors.gray600,
     lineHeight: 20,
   },
+  streakAndEditContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   streakContainer: {
     alignItems: 'center',
     backgroundColor: Colors.gray50,
     borderRadius: 12,
-    padding: 12,
-    minWidth: 80,
+    padding: 10,
+    minWidth: 65,
   },
   streakNumber: {
     fontSize: 24,
@@ -878,13 +1088,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   calendarHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
   monthTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.gray800,
+    flex: 1,
+    textAlign: 'center',
+  },
+  monthNavButton: {
+    padding: 8,
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthNavButtonDisabled: {
+    opacity: 0.3,
   },
   dayHeaders: {
     flexDirection: 'row',
@@ -939,6 +1165,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray100,
     opacity: 0.4,
   },
+  beforeCreationTile: {
+    backgroundColor: Colors.gray100,
+    opacity: 0.3,
+  },
   dayNumber: {
     fontSize: 14,
     fontWeight: '600',
@@ -956,68 +1186,14 @@ const styles = StyleSheet.create({
   futureDayNumber: {
     color: Colors.gray300,
   },
+  beforeCreationDayNumber: {
+    color: Colors.gray200,
+  },
   todayCompletedDayNumber: {
     color: '#FFD700',
     fontWeight: '700',
   },
-  xpAnimation: {
-    position: 'absolute',
-    top: -10,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 120,
-    alignItems: 'center',
-  },
-  xpText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  historySection: {
-    marginBottom: 20,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.gray50,
-    borderRadius: 8,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.gray700,
-  },
-  historyChevron: {
-    transform: [{ rotate: '0deg' }],
-  },
-  historyChevronRotated: {
-    transform: [{ rotate: '180deg' }],
-  },
-  historyList: {
-    marginTop: 8,
-    backgroundColor: Colors.gray50,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  historyItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray200,
-  },
-  historyItemText: {
-    fontSize: 14,
-    color: Colors.gray700,
-  },
-  currentMonthText: {
-    fontWeight: '600',
-    color: Colors.primary,
-  },
+
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -1039,5 +1215,64 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textTransform: 'uppercase',
     fontWeight: '600',
+  },
+  completedCard: {
+    opacity: 0.7,
+  },
+  completedTitle: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray500,
+  },
+  completedDescription: {
+    textDecorationLine: 'line-through',
+    color: Colors.gray400,
+  },
+  editButton: {
+    padding: 8,
+  },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.gray900,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+  },
+  descriptionInput: {
+    fontSize: 14,
+    color: Colors.gray600,
+    lineHeight: 20,
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: Colors.white,
+    minHeight: 24,
+  },
+  targetAmountEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  targetAmountLabel: {
+    fontSize: 18,
+    color: Colors.gray500,
+    marginRight: 8,
+  },
+  targetAmountInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray300,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 18,
+    color: Colors.gray700,
+    backgroundColor: Colors.white,
+    minWidth: 80,
+    textAlign: 'left',
   },
 });

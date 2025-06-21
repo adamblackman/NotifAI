@@ -10,10 +10,11 @@ import { FloatingActionButton } from '@/components/goals/FloatingActionButton';
 import { generateGoalFromThought } from '@/lib/goalGeneration';
 
 export default function HomeScreen() {
-  const { goals, refetch } = useGoals();
+  const { goals, refetch, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
   const [isGenerating, setIsGenerating] = useState(false);
-  const activeGoals = goals.filter(goal => !goal.completedAt);
-  const completedGoals = goals.filter(goal => goal.completedAt);
+  
+  // Get goals sorted by completion (incomplete first, completed at bottom)
+  const sortedGoals = getGoalsSortedByCompletion();
 
   // Refresh goals when screen comes into focus (e.g., when navigating back from tracking screen)
   useFocusEffect(
@@ -26,20 +27,25 @@ export default function HomeScreen() {
     setIsGenerating(true);
     try {
       console.log('Generating plan for:', thought);
-      await generateGoalFromThought(thought);
+      const generatedGoals = await generateGoalFromThought(thought);
       
       await refetch();
       
+      const goalCount = generatedGoals.length;
+      const message = goalCount === 1 
+        ? 'Your goal has been created successfully!' 
+        : `${goalCount} goals have been created successfully!`;
+      
       Alert.alert(
-        'Goal Created!', 
-        'Your goal has been created successfully!',
+        'Goals Created!', 
+        message,
         [{ text: 'OK' }]
       );
     } catch (error) {
       console.error('Error generating goal:', error);
       Alert.alert(
         'Error', 
-        'Failed to generate goal. Please try again or create one manually.',
+        'Failed to generate goals. Please try again or create one manually.',
         [
           { text: 'Try Again', style: 'cancel' },
           { text: 'Create Manually', onPress: () => router.push('/create-goal') }
@@ -68,24 +74,15 @@ export default function HomeScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <ThoughtDumpInput onSubmit={handleThoughtDump} loading={isGenerating} />
         
-        {activeGoals.length === 0 && completedGoals.length === 0 ? (
+        {sortedGoals.length === 0 ? (
           <EmptyState />
         ) : (
           <View style={styles.goalsContainer}>
-            {/* Active goals */}
-            {activeGoals.map((goal) => (
+            {sortedGoals.map((goal) => (
               <GoalTile
                 key={goal.id}
                 goal={goal}
-                onPress={() => handleGoalPress(goal.id)}
-              />
-            ))}
-            
-            {/* Show completed goals at the bottom */}
-            {completedGoals.map((goal) => (
-              <GoalTile
-                key={goal.id}
-                goal={goal}
+                isCompleted={isGoalCompleted(goal)}
                 onPress={() => handleGoalPress(goal.id)}
               />
             ))}

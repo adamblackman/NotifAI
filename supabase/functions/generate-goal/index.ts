@@ -63,7 +63,7 @@ serve(async (req) => {
             {
               role: "system",
               content:
-                `You are a goal planning assistant. Based on user input, analyze and create MULTIPLE goals if the user mentions multiple different objectives. Each goal should fit into one of these categories: Habit, Project, Learn, or Save.
+                `You are a goal planning assistant. Based on user input, analyze and create at least one goal, multiple if the user mentions multiple different objectives. Each goal should fit into one of these categories: Habit, Project, Learn, or Save.
 
 CRITICAL INSTRUCTIONS:
 1. ONLY return a valid JSON object containing an array of goals

@@ -258,6 +258,19 @@ inspector_port = 8083
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 # entrypoint = "./functions/MY_FUNCTION_NAME/index.ts"
 
+# Configure cron jobs for notification functions
+[functions.generate-notifications]
+enabled = true
+schedule = "0 0 * * *"  # Runs daily at midnight UTC
+timeout = 600  # 10 minutes for AI calls
+verify_jwt = false
+
+[functions.send-notifications]
+enabled = true
+schedule = "*/15 * * * *"  # Runs every 15 minutes
+timeout = 60  # 1 minute
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

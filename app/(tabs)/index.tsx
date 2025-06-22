@@ -7,11 +7,13 @@ import { ThoughtDumpInput } from '@/components/goals/ThoughtDumpInput';
 import { EmptyState } from '@/components/goals/EmptyState';
 import { GoalTile } from '@/components/goals/GoalTile';
 import { FloatingActionButton } from '@/components/goals/FloatingActionButton';
+import { LoadingAnimation } from '@/components/ui/LoadingAnimation';
 import { generateGoalFromThought } from '@/lib/goalGeneration';
 
 export default function HomeScreen() {
   const { goals, refetch, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [newlyGeneratedGoalIds, setNewlyGeneratedGoalIds] = useState<string[]>([]);
   
   // Get goals sorted by completion (incomplete first, completed at bottom)
   const sortedGoals = getGoalsSortedByCompletion();
@@ -25,8 +27,14 @@ export default function HomeScreen() {
 
   const handleThoughtDump = async (thought: string) => {
     setIsGenerating(true);
+    setNewlyGeneratedGoalIds([]);
+    
     try {
       const generatedGoals = await generateGoalFromThought(thought);
+      
+      // Store the IDs of newly generated goals for animation
+      const newGoalIds = generatedGoals.map(goal => goal.id);
+      setNewlyGeneratedGoalIds(newGoalIds);
       
       await refetch();
       
@@ -52,6 +60,10 @@ export default function HomeScreen() {
       );
     } finally {
       setIsGenerating(false);
+      // Clear the newly generated IDs after animation completes
+      setTimeout(() => {
+        setNewlyGeneratedGoalIds([]);
+      }, 2000);
     }
   };
 
@@ -66,10 +78,10 @@ export default function HomeScreen() {
     router.push('/create-goal');
   };
 
-
-
   return (
     <SafeAreaView style={styles.container}>
+      <LoadingAnimation visible={isGenerating} />
+      
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <ThoughtDumpInput onSubmit={handleThoughtDump} loading={isGenerating} />
         
@@ -77,12 +89,14 @@ export default function HomeScreen() {
           <EmptyState />
         ) : (
           <View style={styles.goalsContainer}>
-            {sortedGoals.map((goal) => (
+            {sortedGoals.map((goal, index) => (
               <GoalTile
                 key={goal.id}
                 goal={goal}
                 isCompleted={isGoalCompleted(goal)}
                 onPress={() => handleGoalPress(goal.id)}
+                isNewlyGenerated={newlyGeneratedGoalIds.includes(goal.id)}
+                animationDelay={newlyGeneratedGoalIds.includes(goal.id) ? index * 150 : 0}
               />
             ))}
           </View>

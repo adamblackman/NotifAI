@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Repeat, SquareCheck as CheckSquare, BookOpen, PiggyBank, Award } from 'lucide-react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming,
+  withDelay,
+  Easing
+} from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { Goal, ProjectGoal, Task, HabitGoal, LearnGoal, SaveGoal, CurriculumItem } from '@/types/Goal';
 
@@ -8,6 +15,8 @@ interface GoalTileProps {
   goal: Goal;
   onPress: () => void;
   isCompleted?: boolean;
+  isNewlyGenerated?: boolean;
+  animationDelay?: number;
 }
 
 const categoryConfig = {
@@ -33,7 +42,7 @@ const categoryConfig = {
   },
 };
 
-export function GoalTile({ goal, onPress, isCompleted = false }: GoalTileProps) {
+export function GoalTile({ goal, onPress, isCompleted = false, isNewlyGenerated = false, animationDelay = 0 }: GoalTileProps) {
   const config = categoryConfig[goal.category];
   
   if (!config) {
@@ -43,6 +52,48 @@ export function GoalTile({ goal, onPress, isCompleted = false }: GoalTileProps) 
   
   const Icon = config.icon;
   const showCompleted = isCompleted || !!goal.completedAt;
+
+  // Animation values for newly generated goals
+  const opacity = useSharedValue(isNewlyGenerated ? 0 : 1);
+  const translateY = useSharedValue(isNewlyGenerated ? -20 : 0);
+  const scale = useSharedValue(isNewlyGenerated ? 0.95 : 1);
+
+  useEffect(() => {
+    if (isNewlyGenerated) {
+      // Staggered animation for newly generated goals
+      opacity.value = withDelay(
+        animationDelay,
+        withTiming(1, { 
+          duration: 500, 
+          easing: Easing.out(Easing.cubic) 
+        })
+      );
+      
+      translateY.value = withDelay(
+        animationDelay,
+        withTiming(0, { 
+          duration: 500, 
+          easing: Easing.out(Easing.cubic) 
+        })
+      );
+      
+      scale.value = withDelay(
+        animationDelay,
+        withTiming(1, { 
+          duration: 500, 
+          easing: Easing.out(Easing.cubic) 
+        })
+      );
+    }
+  }, [isNewlyGenerated, animationDelay]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { translateY: translateY.value },
+      { scale: scale.value }
+    ],
+  }));
 
   // Calculate completion percentage for each goal type
   const getCompletionPercentage = () => {
@@ -79,41 +130,43 @@ export function GoalTile({ goal, onPress, isCompleted = false }: GoalTileProps) 
   const completionPercentage = getCompletionPercentage();
 
   return (
-    <TouchableOpacity 
-      style={[
-        styles.container, 
-        showCompleted && styles.completedContainer
-      ]} 
-      onPress={onPress} 
-      activeOpacity={0.8}
-    >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <View style={[styles.iconContainer, { backgroundColor: `${config.color}15` }]}>
-              <Icon size={20} color={config.color} />
-            </View>
-            <View style={styles.titleContainer}>
-              <Text style={[styles.title, showCompleted && styles.completedTitle]}>
-                {goal.title}
-              </Text>
-              <Text style={styles.categoryLabel}>{config.label}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.rightSection}>
-            {showCompleted && (
-              <View style={styles.completionBadge}>
-                <Award size={16} color={Colors.warning} />
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity 
+        style={[
+          styles.container, 
+          showCompleted && styles.completedContainer
+        ]} 
+        onPress={onPress} 
+        activeOpacity={0.8}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.titleRow}>
+              <View style={[styles.iconContainer, { backgroundColor: `${config.color}15` }]}>
+                <Icon size={20} color={config.color} />
               </View>
-            )}
-            <Text style={styles.xpText}>
-              {completionPercentage}%
-            </Text>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.title, showCompleted && styles.completedTitle]}>
+                  {goal.title}
+                </Text>
+                <Text style={styles.categoryLabel}>{config.label}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.rightSection}>
+              {showCompleted && (
+                <View style={styles.completionBadge}>
+                  <Award size={16} color={Colors.warning} />
+                </View>
+              )}
+              <Text style={styles.xpText}>
+                {completionPercentage}%
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

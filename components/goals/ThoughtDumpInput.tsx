@@ -26,7 +26,7 @@ export function ThoughtDumpInput({ onSubmit, loading = false }: ThoughtDumpInput
         value={thought}
         onChangeText={setThought}
         multiline
-        numberOfLines={3}
+        numberOfLines={4}
         style={styles.input}
         variant="large"
       />
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   input: {
-    height: 80,
+    height: 100,
     textAlignVertical: 'top',
     marginBottom: 16,
   },

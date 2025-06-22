@@ -13,9 +13,16 @@ serve(async (req) => {
   }
 
   try {
+    // Use service role key for admin access
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
     );
 
     console.log("Starting notification generation...");
@@ -41,9 +48,12 @@ serve(async (req) => {
 
     console.log(`Processing ${users.length} users...`);
 
+    let totalNotificationsCreated = 0;
+
     for (const user of users) {
       try {
-        await processUserNotifications(supabaseClient, user);
+        const notificationsCreated = await processUserNotifications(supabaseClient, user);
+        totalNotificationsCreated += notificationsCreated;
       } catch (error) {
         console.error(`Error processing user ${user.id}:`, error);
         // Continue with other users even if one fails
@@ -51,13 +61,17 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, processedUsers: users.length }),
+      JSON.stringify({ 
+        success: true, 
+        processedUsers: users.length,
+        notificationsCreated: totalNotificationsCreated
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Function error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: error.message || "Internal server error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -66,7 +80,7 @@ serve(async (req) => {
   }
 });
 
-async function processUserNotifications(supabaseClient: any, user: any) {
+async function processUserNotifications(supabaseClient: any, user: any): Promise<number> {
   const preferences = user.preferences;
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -75,7 +89,7 @@ async function processUserNotifications(supabaseClient: any, user: any) {
   // Check if notifications are enabled for today
   if (!preferences.notification_days[mondayIndex]) {
     console.log(`Notifications disabled for user ${user.id} on day ${dayOfWeek}`);
-    return;
+    return 0;
   }
 
   // Get user's active goals
@@ -87,12 +101,12 @@ async function processUserNotifications(supabaseClient: any, user: any) {
 
   if (goalsError) {
     console.error(`Error fetching goals for user ${user.id}:`, goalsError);
-    return;
+    return 0;
   }
 
   if (!goals || goals.length === 0) {
     console.log(`No active goals for user ${user.id}`);
-    return;
+    return 0;
   }
 
   // Get recent notifications for this user (past week)
@@ -107,23 +121,28 @@ async function processUserNotifications(supabaseClient: any, user: any) {
 
   if (notificationsError) {
     console.error(`Error fetching recent notifications for user ${user.id}:`, notificationsError);
-    return;
+    return 0;
   }
+
+  let notificationsCreated = 0;
 
   // Process each goal
   for (const goal of goals) {
     try {
-      await processGoalNotification(
+      const created = await processGoalNotification(
         supabaseClient,
         user,
         goal,
         preferences,
         recentNotifications || []
       );
+      if (created) notificationsCreated++;
     } catch (error) {
       console.error(`Error processing goal ${goal.id} for user ${user.id}:`, error);
     }
   }
+
+  return notificationsCreated;
 }
 
 async function processGoalNotification(
@@ -132,7 +151,7 @@ async function processGoalNotification(
   goal: any,
   preferences: any,
   recentNotifications: any[]
-) {
+): Promise<boolean> {
   // Check if this goal has received a notification recently
   const goalNotifications = recentNotifications.filter(n => n.goal_id === goal.id);
   const lastNotification = goalNotifications.length > 0 
@@ -144,7 +163,7 @@ async function processGoalNotification(
 
   if (!shouldSendNotification) {
     console.log(`Skipping notification for goal ${goal.id} - not needed`);
-    return;
+    return false;
   }
 
   // Generate notification using AI
@@ -156,7 +175,7 @@ async function processGoalNotification(
 
   if (!notificationData) {
     console.log(`Failed to generate notification for goal ${goal.id}`);
-    return;
+    return false;
   }
 
   // Calculate scheduled time within user's notification window
@@ -179,8 +198,10 @@ async function processGoalNotification(
 
   if (insertError) {
     console.error(`Error inserting notification for goal ${goal.id}:`, insertError);
+    return false;
   } else {
     console.log(`Scheduled notification for goal ${goal.id} at ${scheduledAt}`);
+    return true;
   }
 }
 
@@ -309,7 +330,8 @@ Create a personalized, motivating notification that helps the user take action o
     );
 
     if (!openAIResponse.ok) {
-      console.error("OpenAI API error:", await openAIResponse.text());
+      const errorText = await openAIResponse.text();
+      console.error("OpenAI API error:", errorText);
       return null;
     }
 
@@ -321,6 +343,7 @@ Create a personalized, motivating notification that helps the user take action o
       return { message: responseData.message };
     } catch (parseError) {
       console.error("Error parsing AI response:", parseError);
+      console.error("AI Response:", aiResponse);
       return null;
     }
   } catch (error) {

@@ -141,7 +141,6 @@ export function useGoals() {
       // Optimistically remove the goal from local state first
       setGoals((prev) => {
         const filtered = prev.filter((goal) => goal.id !== id);
-        console.log("Optimistically removed goal, new count:", filtered.length);
         return filtered;
       });
 
@@ -152,8 +151,6 @@ export function useGoals() {
         .eq("user_id", user.id);
 
       if (error) throw error;
-
-      console.log("Goal successfully deleted from database");
     } catch (error) {
       console.error("Error deleting goal:", error);
       // If deletion fails, refetch to restore the correct state
@@ -314,20 +311,7 @@ export function useGoals() {
 
       if (aCompleted === bCompleted) {
         // Sort by updated_at in descending order (most recently updated first)
-        // Add safety checks for updatedAt
-        const aTime = a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
-        const bTime = b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
-
-        console.log("Sorting goals:", {
-          aId: a.id,
-          aUpdatedAt: a.updatedAt,
-          aTime,
-          bId: b.id,
-          bUpdatedAt: b.updatedAt,
-          bTime,
-        });
-
-        return bTime - aTime;
+        return b.updatedAt.getTime() - a.updatedAt.getTime();
       }
 
       return aCompleted ? 1 : -1; // Incomplete goals first
@@ -351,13 +335,6 @@ export function useGoals() {
 }
 
 function transformGoalFromDB(dbGoal: any): Goal {
-  // Debug logging
-  console.log("Transforming goal from DB:", {
-    id: dbGoal.id,
-    created_at: dbGoal.created_at,
-    updated_at: dbGoal.updated_at,
-  });
-
   // Ensure we have valid dates
   const createdAt = new Date(dbGoal.created_at);
   const updatedAt = dbGoal.updated_at
@@ -384,15 +361,6 @@ function transformGoalFromDB(dbGoal: any): Goal {
     ...goalData,
     ...baseGoal, // Base properties come last to ensure they're not overwritten
   } as Goal;
-
-  // Debug logging
-  console.log("Transformed goal:", {
-    id: result.id,
-    createdAt: result.createdAt,
-    updatedAt: result.updatedAt,
-    updatedAtType: typeof result.updatedAt,
-    isValidDate: result.updatedAt instanceof Date,
-  });
 
   return result;
 }

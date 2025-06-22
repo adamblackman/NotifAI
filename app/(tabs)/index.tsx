@@ -26,7 +26,6 @@ export default function HomeScreen() {
   const handleThoughtDump = async (thought: string) => {
     setIsGenerating(true);
     try {
-      console.log('Generating plan for:', thought);
       const generatedGoals = await generateGoalFromThought(thought);
       
       await refetch();

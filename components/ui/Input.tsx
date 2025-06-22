@@ -35,6 +35,7 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     justifyContent: 'center',
+    flex: 1,
   },
   input: {
     borderWidth: 1.5,

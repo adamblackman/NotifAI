@@ -84,11 +84,11 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
         >
           <ArrowLeft size={24} color={Colors.gray700} />
         </TouchableOpacity>
-        <Text style={styles.title}>Create Learn Goal</Text>
+        <Text style={styles.title}>Create Curriculum</Text>
       </View>
       
       <Input
-        placeholder="Learn goal title"
+        placeholder="Curriculum title"
         value={title}
         onChangeText={setTitle}
         style={styles.input}
@@ -107,7 +107,7 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
       
       <View style={styles.addItemContainer}>
         <Input
-          placeholder="Add curriculum item..."
+          placeholder="Add lesson..."
           value={newItemTitle}
           onChangeText={setNewItemTitle}
           style={styles.itemInput}
@@ -173,6 +173,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    width: '100%',
   },
   itemInput: {
     flex: 1,

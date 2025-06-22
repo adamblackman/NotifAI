@@ -193,7 +193,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         });
       }
     } catch (error) {
-      console.error('Error adding curriculum item:', error);
+      console.error('Error adding lesson:', error);
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -244,7 +244,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         return updated;
       });
     } catch (error) {
-      console.error('Error removing curriculum item:', error);
+      console.error('Error removing lesson:', error);
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);
@@ -319,7 +319,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
         });
       }
     } catch (error) {
-      console.error('Error updating curriculum item:', error);
+      console.error('Error updating lesson:', error);
       setPendingOperations(prev => {
         const updated = new Set(prev);
         updated.delete(operationId);

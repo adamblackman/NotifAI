@@ -1,8 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const supabaseUrl = 'https://uhnvncqogcfgkdhlvmzq.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobnZuY3FvZ2NmZ2tkaGx2bXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4MjE3NDAsImV4cCI6MjA2NDM5Nzc0MH0.rYRstoYB-yfg9N8SxmZPaSGQg9lA4iCkGEF6raoQ2CQ';
+// Supabase Organization Slug for Bolt Hackathon Challenge
+export const SUPABASE_ORG_SLUG = "lvdmjsshlrxpzjsjdnji";
+
+const supabaseUrl = "https://uhnvncqogcfgkdhlvmzq.supabase.co";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobnZuY3FvZ2NmZ2tkaGx2bXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4MjE3NDAsImV4cCI6MjA2NDM5Nzc0MH0.rYRstoYB-yfg9N8SxmZPaSGQg9lA4iCkGEF6raoQ2CQ";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -48,7 +52,7 @@ export interface Database {
           user_id: string;
           title: string;
           description: string;
-          category: 'habit' | 'project' | 'learn' | 'save';
+          category: "habit" | "project" | "learn" | "save";
           data: Record<string, any>;
           xp_earned: number;
           created_at: string;
@@ -60,7 +64,7 @@ export interface Database {
           user_id: string;
           title: string;
           description?: string;
-          category: 'habit' | 'project' | 'learn' | 'save';
+          category: "habit" | "project" | "learn" | "save";
           data?: Record<string, any>;
           xp_earned?: number;
           created_at?: string;
@@ -72,7 +76,7 @@ export interface Database {
           user_id?: string;
           title?: string;
           description?: string;
-          category?: 'habit' | 'project' | 'learn' | 'save';
+          category?: "habit" | "project" | "learn" | "save";
           data?: Record<string, any>;
           xp_earned?: number;
           completed_at?: string | null;
@@ -86,7 +90,7 @@ export interface Database {
           notification_window_start: number;
           notification_window_end: number;
           notification_days: boolean[];
-          personality: 'serious' | 'friendly' | 'motivating' | 'funny';
+          personality: "serious" | "friendly" | "motivating" | "funny";
           created_at: string;
           updated_at: string;
         };
@@ -96,7 +100,7 @@ export interface Database {
           notification_window_start?: number;
           notification_window_end?: number;
           notification_days?: boolean[];
-          personality?: 'serious' | 'friendly' | 'motivating' | 'funny';
+          personality?: "serious" | "friendly" | "motivating" | "funny";
           created_at?: string;
           updated_at?: string;
         };
@@ -106,7 +110,7 @@ export interface Database {
           notification_window_start?: number;
           notification_window_end?: number;
           notification_days?: boolean[];
-          personality?: 'serious' | 'friendly' | 'motivating' | 'funny';
+          personality?: "serious" | "friendly" | "motivating" | "funny";
           updated_at?: string;
         };
       };

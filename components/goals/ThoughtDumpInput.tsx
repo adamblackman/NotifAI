@@ -22,7 +22,7 @@ export function ThoughtDumpInput({ onSubmit, loading = false }: ThoughtDumpInput
   return (
     <View style={styles.container}>
       <Input
-        placeholder="What would you like to achieve? Describe your goals... (e.g., 'I want to exercise daily, learn Spanish, and save for a vacation')"
+        placeholder="What would you like to achieve? (e.g., exercise daily, learn Spanish, save for a car)"
         value={thought}
         onChangeText={setThought}
         multiline

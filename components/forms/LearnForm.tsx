@@ -141,6 +141,7 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    width: '100%',
+    width: '90%',
   },
   itemInput: {
     flex: 1,

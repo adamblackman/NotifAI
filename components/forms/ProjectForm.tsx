@@ -171,6 +171,7 @@ export function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    width: '100%',
+    width: '90%',
   },
   taskInput: {
     flex: 1,

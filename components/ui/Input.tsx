@@ -7,11 +7,12 @@ interface InputProps extends TextInputProps {
   variant?: 'default' | 'large';
   icon?: React.ComponentProps<typeof Feather>['name'];
   onIconPress?: () => void;
+  containerStyle?: any;
 }
 
-export function Input({ variant = 'default', style, icon, onIconPress, ...props }: InputProps) {
+export function Input({ variant = 'default', style, icon, onIconPress, containerStyle, ...props }: InputProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <TextInput
         style={[
           styles.input,
@@ -35,6 +36,7 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     justifyContent: 'center',
+    width: '100%',
   },
   input: {
     borderWidth: 1.5,

@@ -22,7 +22,7 @@ export function useGoals() {
         .from("goals")
         .select("*")
         .eq("user_id", user.id)
-        .order("order", { ascending: true });
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
 
@@ -313,7 +313,21 @@ export function useGoals() {
       const bCompleted = isGoalCompleted(b);
 
       if (aCompleted === bCompleted) {
-        return (a.order || 0) - (b.order || 0); // Maintain original order within each group
+        // Sort by updated_at in descending order (most recently updated first)
+        // Add safety checks for updatedAt
+        const aTime = a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
+        const bTime = b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
+
+        console.log("Sorting goals:", {
+          aId: a.id,
+          aUpdatedAt: a.updatedAt,
+          aTime,
+          bId: b.id,
+          bUpdatedAt: b.updatedAt,
+          bTime,
+        });
+
+        return bTime - aTime;
       }
 
       return aCompleted ? 1 : -1; // Incomplete goals first
@@ -337,12 +351,26 @@ export function useGoals() {
 }
 
 function transformGoalFromDB(dbGoal: any): Goal {
+  // Debug logging
+  console.log("Transforming goal from DB:", {
+    id: dbGoal.id,
+    created_at: dbGoal.created_at,
+    updated_at: dbGoal.updated_at,
+  });
+
+  // Ensure we have valid dates
+  const createdAt = new Date(dbGoal.created_at);
+  const updatedAt = dbGoal.updated_at
+    ? new Date(dbGoal.updated_at)
+    : new Date(dbGoal.created_at);
+
   const baseGoal = {
     id: dbGoal.id,
     title: dbGoal.title,
     description: dbGoal.description,
     category: dbGoal.category,
-    createdAt: new Date(dbGoal.created_at),
+    createdAt,
+    updatedAt,
     completedAt: dbGoal.completed_at
       ? new Date(dbGoal.completed_at)
       : undefined,
@@ -350,7 +378,23 @@ function transformGoalFromDB(dbGoal: any): Goal {
     order: dbGoal.order || 0,
   };
 
-  return { ...baseGoal, ...(dbGoal.data || {}) } as Goal;
+  // First get the data, then ensure base properties aren't overwritten
+  const goalData = dbGoal.data || {};
+  const result = {
+    ...goalData,
+    ...baseGoal, // Base properties come last to ensure they're not overwritten
+  } as Goal;
+
+  // Debug logging
+  console.log("Transformed goal:", {
+    id: result.id,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
+    updatedAtType: typeof result.updatedAt,
+    isValidDate: result.updatedAt instanceof Date,
+  });
+
+  return result;
 }
 
 function transformGoalToDB(goal: Partial<Goal>, userId: string) {
@@ -374,6 +418,7 @@ function extractGoalData(goal: Partial<Goal>) {
     description,
     category,
     createdAt,
+    updatedAt,
     completedAt,
     xpEarned,
     order,

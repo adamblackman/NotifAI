@@ -111,11 +111,25 @@ SAVE:
   "title": "string", 
   "description": "string",
   "category": "save",
-  "deadline": "2025-06-09T03:00:00.000Z",
+  "deadline": "YYYY-MM-DDTHH:mm:ss.sssZ",
   "targetAmount": 1000,
   "currentAmount": 0,
   "spendingTriggers": ["trigger1", "trigger2"]
 }
+
+TITLE FORMATTING RULES - Keep titles concise and focused:
+- HABIT: Just the activity/thing (e.g., "Retainer" not "Wear Retainer Daily", "Exercise" not "Daily Exercise")
+- PROJECT: Just the deliverable/noun (e.g., "Mobile App" not "Build Mobile App", "Website" not "Create Website")  
+- LEARN: Just the subject/skill (e.g., "Coding" not "Learn to Code", "Spanish" not "Learn Spanish")
+- SAVE: Just the item/goal (e.g., "Car" not "Save for Car", "House" not "Save for House Down Payment")
+
+IMPORTANT for Save goals: Calculate realistic deadlines based on target amount:
+- Small amounts ($100-$1000): 1-3 months from now
+- Medium amounts ($1000-$10000): 6-12 months from now  
+- Large amounts ($10000+): 1-3 years from now
+- Car purchase ($15000-$30000): 1-2 years from now
+- House down payment ($50000+): 2-5 years from now
+Always use ISO format dates in the future from today's date.
 
 Examples:
 Input: "I want to wear my retainer everyday and exercise everyday and save up to buy a car"

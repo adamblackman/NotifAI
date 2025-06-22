@@ -6,6 +6,7 @@ export interface BaseGoal {
   description: string;
   category: GoalCategory;
   createdAt: Date;
+  updatedAt: Date;
   completedAt?: Date;
   xpEarned: number;
   order?: number;

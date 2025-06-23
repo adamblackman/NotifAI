@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Linking } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -43,12 +43,31 @@ export function AuthScreen() {
     }
   };
 
+  const handleBoltLogoPress = () => {
+    Linking.openURL('https://bolt.new/');
+  };
+
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.spacer} />
+        <TouchableOpacity onPress={handleBoltLogoPress}>
+          <Image 
+            source={require('@/assets/images/white_circle_360x360.png')} 
+            style={styles.boltLogo}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.content}>
-        <Text style={styles.title}>Goal Companion</Text>
+        <Image 
+          source={require('@/assets/images/Logo.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.subtitle}>
-          Your AI-powered habit and goal tracking companion
+          Your AI-powered buddy to remind you anything you need right when you need it
         </Text>
 
         <Card style={styles.card}>
@@ -113,17 +132,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.gray50,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  spacer: {
+    flex: 1,
+  },
+  boltLogo: {
+    height: 32,
+    width: 32,
+  },
   content: {
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.gray800,
-    textAlign: 'center',
-    marginBottom: 8,
+  logo: {
+    height: 80,
+    width: 240,
+    marginBottom: 16,
   },
   subtitle: {
     fontSize: 16,
@@ -131,9 +163,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
+    maxWidth: 300,
   },
   card: {
     padding: 24,
+    width: '100%',
   },
   input: {
     marginBottom: 16,

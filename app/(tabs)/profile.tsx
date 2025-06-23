@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useProfile } from '@/hooks/useProfile';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Header } from '@/components/ui/Header';
 
 const medalColors = {
   bronze: Colors.medal.bronze,
@@ -151,11 +152,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
-        
         <Card style={styles.xpCard}>
           <View style={styles.xpHeader}>
             <Trophy size={32} color={Colors.primary} />

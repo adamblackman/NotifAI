@@ -9,6 +9,7 @@ import { GoalTile } from '@/components/goals/GoalTile';
 import { FloatingActionButton } from '@/components/goals/FloatingActionButton';
 import { LoadingAnimation } from '@/components/ui/LoadingAnimation';
 import { generateGoalFromThought } from '@/lib/goalGeneration';
+import { Header } from '@/components/ui/Header';
 
 export default function HomeScreen() {
   const { goals, refetch, isGoalCompleted, getGoalsSortedByCompletion } = useGoals();
@@ -80,6 +81,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header />
       <LoadingAnimation visible={isGenerating} />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>

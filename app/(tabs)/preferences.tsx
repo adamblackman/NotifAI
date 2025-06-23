@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
+import { Header } from '@/components/ui/Header';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -83,6 +84,7 @@ export default function PreferencesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header />
       <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
@@ -90,10 +92,6 @@ export default function PreferencesScreen() {
         bounces={true}
         scrollEventThrottle={16}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
-        </View>
-        
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Notification Schedule</Text>
           <Text style={styles.sectionDescription}>

@@ -233,6 +233,8 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   modalOverlay: {
     flex: 1,

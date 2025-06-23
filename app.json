@@ -14,7 +14,11 @@
       "backgroundColor": "#635BFF"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.adamblackman.notifai"
+    },
+    "android": {
+      "package": "com.adamblackman.notifai"
     },
     "web": {
       "bundler": "metro",
@@ -22,8 +26,8 @@
       "favicon": "./assets/images/Icon.png"
     },
     "plugins": [
-      "expo-router", 
-      "expo-font", 
+      "expo-router",
+      "expo-font",
       "expo-web-browser",
       [
         "expo-notifications",
@@ -36,6 +40,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b59b4d66-08a5-4f07-8c16-ce3c69813929"
+      }
     }
   }
 }

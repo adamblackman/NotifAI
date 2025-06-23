@@ -148,7 +148,6 @@ async function sendNotification(
         category: notification.goals?.category,
       },
       sound: "default",
-      badge: 1,
     };
 
     // Send to Expo Push API

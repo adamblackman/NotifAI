@@ -79,6 +79,7 @@ export function useNotifications() {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: "#FF231F7C",
+          showBadge: false,
         });
       }
 
@@ -140,6 +141,7 @@ export function useNotifications() {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#FF231F7C",
+        showBadge: false,
       });
     }
 

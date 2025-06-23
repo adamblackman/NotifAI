@@ -101,14 +101,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const setupNotificationsForNewUser = async (userId: string, token?: string) => {
-    
     if (token) {
       try {
         const { error } = await supabase
           .from("device_tokens")
           .upsert(
             { user_id: userId, token },
-            { onConflict: "user_id" },
+            { onConflict: "token" },
           );
 
         if (error) {

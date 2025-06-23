@@ -181,7 +181,7 @@ export function useNotifications() {
         .from("device_tokens")
         .upsert(
           { user_id: user.id, token },
-          { onConflict: "user_id" },
+          { onConflict: "token" },
         );
 
       if (error) {

@@ -151,9 +151,10 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header />
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Header />
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Card style={styles.xpCard}>
           <View style={styles.xpHeader}>
             <Trophy size={32} color={Colors.primary} />
@@ -182,12 +183,17 @@ export default function ProfileScreen() {
             renderMedalShelf(category, medals)
           )}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.gray50,

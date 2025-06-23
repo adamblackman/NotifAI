@@ -11,8 +11,18 @@ import { router } from 'expo-router';
 
 function AuthenticatedLayout() {
   const { user, loading } = useAuth();
-  const { notification } = useNotifications();
+  const { notification, permissionStatus, requestNotificationPermissions } = useNotifications();
   const [currentNotification, setCurrentNotification] = useState<any>(null);
+
+  // Check if user needs notification setup after authentication
+  useEffect(() => {
+    if (user && permissionStatus === 'undetermined') {
+      // Small delay to let the main UI load first
+      setTimeout(() => {
+        requestNotificationPermissions();
+      }, 2000);
+    }
+  }, [user, permissionStatus]);
 
   useEffect(() => {
     if (notification) {
@@ -46,7 +56,7 @@ function AuthenticatedLayout() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="create-goal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="create-goal/index" options={{ presentation: 'modal' }} />
         <Stack.Screen name="tracking/[category]" options={{ headerShown: true }} />
         <Stack.Screen name="achievements/[category]" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />

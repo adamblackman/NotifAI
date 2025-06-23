@@ -46,7 +46,7 @@ export function FloatingActionButton({ onPress }: FloatingActionButtonProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 120, // Adjusted for higher tab bar
+    bottom: 80, // Moved down from 120 to be closer to bottom row
     right: 24,
     backgroundColor: Colors.primary,
     borderRadius: 28,

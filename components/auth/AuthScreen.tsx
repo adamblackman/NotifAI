@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Linking, Modal } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,10 @@ export function AuthScreen() {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [newUserId, setNewUserId] = useState<string | null>(null);
+  const { signIn, signUp, setupNotificationsForNewUser } = useAuth();
+  const { requestNotificationPermissions } = useNotifications();
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim() || (isSignUp && !confirmPassword.trim())) {
@@ -27,20 +31,64 @@ export function AuthScreen() {
       return;
     }
 
+    console.log("🔐 Starting authentication...", { isSignUp, email });
     setLoading(true);
     try {
-      const { error } = isSignUp 
+      const { data, error } = isSignUp 
         ? await signUp(email.trim(), password)
         : await signIn(email.trim(), password);
 
+      console.log("🔐 Auth result:", { 
+        hasError: !!error, 
+        hasData: !!data, 
+        hasUser: !!data?.user,
+        userId: data?.user?.id 
+      });
+
       if (error) {
+        console.error("❌ Auth error:", error);
         Alert.alert('Error', error.message);
+      } else if (isSignUp && data?.user) {
+        // For new signups, show notification permission modal
+        console.log("🎉 Signup successful! Showing notification modal for user:", data.user.id);
+        setNewUserId(data.user.id);
+        setShowNotificationModal(true);
+      } else if (!isSignUp && data?.user) {
+        console.log("✅ Sign in successful for user:", data.user.id);
       }
     } catch (error) {
+      console.error("❌ Auth exception:", error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNotificationPermission = async (allowNotifications: boolean) => {
+    console.log("🔔 Notification permission choice:", { allowNotifications, newUserId });
+    
+    if (allowNotifications && newUserId) {
+      try {
+        console.log("🔔 Requesting notification permissions...");
+        const { granted, token } = await requestNotificationPermissions();
+        console.log("🔔 Permission result:", { granted, hasToken: !!token });
+        
+        if (granted && token) {
+          console.log("💾 Setting up notifications for new user...");
+          await setupNotificationsForNewUser(newUserId, token);
+          console.log("✅ Notification setup complete!");
+        } else {
+          console.log("⚠️ Permission granted but no token received");
+        }
+      } catch (error) {
+        console.error('❌ Error setting up notifications:', error);
+      }
+    } else {
+      console.log("⏭️ User skipped notification permissions");
+    }
+    
+    setShowNotificationModal(false);
+    setNewUserId(null);
   };
 
   const handleBoltLogoPress = () => {
@@ -49,18 +97,15 @@ export function AuthScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.spacer} />
-        <TouchableOpacity onPress={handleBoltLogoPress}>
-          <Image 
-            source={require('@/assets/images/white_circle_360x360.png')} 
-            style={styles.boltLogo}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity onPress={handleBoltLogoPress} style={styles.boltLogoContainer}>
+        <Image 
+          source={require('@/assets/images/white_circle_360x360.png')} 
+          style={styles.boltLogo}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
 
-      <View style={styles.content}>
+      <View style={styles.centeredContent}>
         <Image 
           source={require('@/assets/images/Logo.png')} 
           style={styles.logo}
@@ -69,7 +114,7 @@ export function AuthScreen() {
         <Text style={styles.subtitle}>
           Your AI-powered buddy to remind you anything you need right when you need it
         </Text>
-
+        
         <Card style={styles.card}>
           <Input
             placeholder="Email"
@@ -123,6 +168,38 @@ export function AuthScreen() {
           />
         </Card>
       </View>
+
+      {/* Notification Permission Modal */}
+      <Modal
+        visible={showNotificationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => handleNotificationPermission(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🔔 Enable Notifications</Text>
+            <Text style={styles.modalMessage}>
+              NotifAI can send you personalized reminders to help you stay on track with your goals. 
+              {'\n\n'}Would you like to receive notifications?
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <Button
+                title="Not Now"
+                onPress={() => handleNotificationPermission(false)}
+                variant="outline"
+                style={styles.modalButton}
+              />
+              <Button
+                title="Allow Notifications"
+                onPress={() => handleNotificationPermission(true)}
+                style={styles.modalButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -132,29 +209,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.gray50,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  spacer: {
-    flex: 1,
+  boltLogoContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 1,
   },
   boltLogo: {
-    height: 32,
-    width: 32,
+    height: 80,
+    width: 80,
   },
-  content: {
+  centeredContent: {
     flex: 1,
     justifyContent: 'center',
     padding: 20,
     alignItems: 'center',
   },
   logo: {
-    height: 80,
-    width: 240,
+    height: 60,
+    width: 180,
     marginBottom: 16,
   },
   subtitle: {
@@ -177,5 +250,40 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     marginTop: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+    color: Colors.gray900,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: Colors.gray600,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
   },
 });

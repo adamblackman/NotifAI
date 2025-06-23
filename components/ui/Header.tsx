@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Image, StyleSheet, TouchableOpacity, Linking, StatusBar } from 'react-native';
 import { Colors } from '@/constants/Colors';
 
 interface HeaderProps {
@@ -12,23 +12,26 @@ export function Header({ showLogo = true }: HeaderProps) {
   };
 
   return (
-    <View style={styles.container}>
-      {showLogo && (
-        <Image 
-          source={require('@/assets/images/Logo.png')} 
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      )}
-      <View style={styles.spacer} />
-      <TouchableOpacity onPress={handleBoltLogoPress}>
-        <Image 
-          source={require('@/assets/images/white_circle_360x360.png')} 
-          style={styles.boltLogo}
-          resizeMode="contain"
-        />
-      </TouchableOpacity>
-    </View>
+    <>
+      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
+      <View style={styles.container}>
+        {showLogo && (
+          <Image 
+            source={require('@/assets/images/Logo.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        )}
+        <View style={styles.spacer} />
+        <TouchableOpacity onPress={handleBoltLogoPress} style={styles.boltLogoContainer}>
+          <Image 
+            source={require('@/assets/images/white_circle_360x360.png')} 
+            style={styles.boltLogo}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      </View>
+    </>
   );
 }
 
@@ -38,7 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray100,
@@ -50,8 +53,11 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
+  boltLogoContainer: {
+    padding: 4,
+  },
   boltLogo: {
-    height: 32,
-    width: 32,
+    height: 48,
+    width: 48,
   },
 });

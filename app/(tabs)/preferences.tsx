@@ -83,9 +83,10 @@ export default function PreferencesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header />
-      <ScrollView 
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Header />
+        <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -194,12 +195,17 @@ export default function PreferencesScreen() {
         </Card>
         
         <View style={styles.bottomPadding} />
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.gray50,

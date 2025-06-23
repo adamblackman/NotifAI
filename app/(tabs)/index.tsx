@@ -80,8 +80,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Header />
       <LoadingAnimation visible={isGenerating} />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -105,12 +106,17 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       
-      <FloatingActionButton onPress={handleManualCreate} />
+        <FloatingActionButton onPress={handleManualCreate} />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.gray50,

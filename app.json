@@ -21,7 +21,19 @@
       "output": "single",
       "favicon": "./assets/images/Icon.png"
     },
-    "plugins": ["expo-router", "expo-font", "expo-web-browser"],
+    "plugins": [
+      "expo-router", 
+      "expo-font", 
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification_icon.png",
+          "color": "#635BFF",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

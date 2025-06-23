@@ -20,12 +20,10 @@ serve(async (req) => {
       {
         auth: {
           autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+          persistSession: false,
+        },
+      },
     );
-
-    console.log("Starting notification generation...");
 
     // Get all active users with their preferences
     const { data: users, error: usersError } = await supabaseClient
@@ -46,13 +44,14 @@ serve(async (req) => {
       throw usersError;
     }
 
-    console.log(`Processing ${users.length} users...`);
-
     let totalNotificationsCreated = 0;
 
     for (const user of users) {
       try {
-        const notificationsCreated = await processUserNotifications(supabaseClient, user);
+        const notificationsCreated = await processUserNotifications(
+          supabaseClient,
+          user,
+        );
         totalNotificationsCreated += notificationsCreated;
       } catch (error) {
         console.error(`Error processing user ${user.id}:`, error);
@@ -61,12 +60,12 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         processedUsers: users.length,
-        notificationsCreated: totalNotificationsCreated
+        notificationsCreated: totalNotificationsCreated,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Function error:", error);
@@ -75,12 +74,15 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
 
-async function processUserNotifications(supabaseClient: any, user: any): Promise<number> {
+async function processUserNotifications(
+  supabaseClient: any,
+  user: any,
+): Promise<number> {
   const preferences = user.preferences;
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -88,7 +90,6 @@ async function processUserNotifications(supabaseClient: any, user: any): Promise
 
   // Check if notifications are enabled for today
   if (!preferences.notification_days[mondayIndex]) {
-    console.log(`Notifications disabled for user ${user.id} on day ${dayOfWeek}`);
     return 0;
   }
 
@@ -105,7 +106,6 @@ async function processUserNotifications(supabaseClient: any, user: any): Promise
   }
 
   if (!goals || goals.length === 0) {
-    console.log(`No active goals for user ${user.id}`);
     return 0;
   }
 
@@ -113,14 +113,18 @@ async function processUserNotifications(supabaseClient: any, user: any): Promise
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
-  const { data: recentNotifications, error: notificationsError } = await supabaseClient
-    .from("scheduled_notifications")
-    .select("goal_id, scheduled_at, message")
-    .eq("user_id", user.id)
-    .gte("scheduled_at", weekAgo.toISOString());
+  const { data: recentNotifications, error: notificationsError } =
+    await supabaseClient
+      .from("scheduled_notifications")
+      .select("goal_id, scheduled_at, message")
+      .eq("user_id", user.id)
+      .gte("scheduled_at", weekAgo.toISOString());
 
   if (notificationsError) {
-    console.error(`Error fetching recent notifications for user ${user.id}:`, notificationsError);
+    console.error(
+      `Error fetching recent notifications for user ${user.id}:`,
+      notificationsError,
+    );
     return 0;
   }
 
@@ -134,11 +138,14 @@ async function processUserNotifications(supabaseClient: any, user: any): Promise
         user,
         goal,
         preferences,
-        recentNotifications || []
+        recentNotifications || [],
       );
       if (created) notificationsCreated++;
     } catch (error) {
-      console.error(`Error processing goal ${goal.id} for user ${user.id}:`, error);
+      console.error(
+        `Error processing goal ${goal.id} for user ${user.id}:`,
+        error,
+      );
     }
   }
 
@@ -150,19 +157,27 @@ async function processGoalNotification(
   user: any,
   goal: any,
   preferences: any,
-  recentNotifications: any[]
+  recentNotifications: any[],
 ): Promise<boolean> {
   // Check if this goal has received a notification recently
-  const goalNotifications = recentNotifications.filter(n => n.goal_id === goal.id);
-  const lastNotification = goalNotifications.length > 0 
-    ? new Date(Math.max(...goalNotifications.map(n => new Date(n.scheduled_at).getTime())))
+  const goalNotifications = recentNotifications.filter((n) =>
+    n.goal_id === goal.id
+  );
+  const lastNotification = goalNotifications.length > 0
+    ? new Date(
+      Math.max(...goalNotifications.map((n) =>
+        new Date(n.scheduled_at).getTime()
+      )),
+    )
     : null;
 
   // Determine if we should send a notification for this goal
-  const shouldSendNotification = await shouldSendGoalNotification(goal, lastNotification);
+  const shouldSendNotification = await shouldSendGoalNotification(
+    goal,
+    lastNotification,
+  );
 
   if (!shouldSendNotification) {
-    console.log(`Skipping notification for goal ${goal.id} - not needed`);
     return false;
   }
 
@@ -170,11 +185,10 @@ async function processGoalNotification(
   const notificationData = await generateNotificationWithAI(
     goal,
     preferences,
-    goalNotifications
+    goalNotifications,
   );
 
   if (!notificationData) {
-    console.log(`Failed to generate notification for goal ${goal.id}`);
     return false;
   }
 
@@ -182,7 +196,7 @@ async function processGoalNotification(
   const scheduledAt = calculateScheduledTime(
     preferences.notification_window_start,
     preferences.notification_window_end,
-    preferences.timezone || 'America/Los_Angeles'
+    preferences.timezone || "America/Los_Angeles",
   );
 
   // Insert the scheduled notification
@@ -193,21 +207,26 @@ async function processGoalNotification(
       goal_id: goal.id,
       message: notificationData.message,
       scheduled_at: scheduledAt.toISOString(),
-      status: 'pending'
+      status: "pending",
     });
 
   if (insertError) {
-    console.error(`Error inserting notification for goal ${goal.id}:`, insertError);
+    console.error(
+      `Error inserting notification for goal ${goal.id}:`,
+      insertError,
+    );
     return false;
   } else {
-    console.log(`Scheduled notification for goal ${goal.id} at ${scheduledAt}`);
     return true;
   }
 }
 
-async function shouldSendGoalNotification(goal: any, lastNotification: Date | null): Promise<boolean> {
+async function shouldSendGoalNotification(
+  goal: any,
+  lastNotification: Date | null,
+): Promise<boolean> {
   const now = new Date();
-  
+
   // If no previous notification, send one
   if (!lastNotification) {
     return true;
@@ -215,7 +234,7 @@ async function shouldSendGoalNotification(goal: any, lastNotification: Date | nu
 
   // Don't send more than one notification per day
   const daysSinceLastNotification = Math.floor(
-    (now.getTime() - lastNotification.getTime()) / (1000 * 60 * 60 * 24)
+    (now.getTime() - lastNotification.getTime()) / (1000 * 60 * 60 * 24),
   );
 
   if (daysSinceLastNotification < 1) {
@@ -229,29 +248,31 @@ async function shouldSendGoalNotification(goal: any, lastNotification: Date | nu
 
   // Goal-specific logic
   switch (goal.category) {
-    case 'habit':
+    case "habit":
       // Daily habits should get notifications more frequently
       return daysSinceLastNotification >= 1;
-    
-    case 'project':
+
+    case "project":
       // Projects need less frequent notifications unless deadline is near
       const dueDate = goal.data?.dueDate ? new Date(goal.data.dueDate) : null;
       if (dueDate) {
-        const daysUntilDue = Math.floor((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const daysUntilDue = Math.floor(
+          (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
         if (daysUntilDue <= 7) {
           return daysSinceLastNotification >= 1; // Daily if due soon
         }
       }
       return daysSinceLastNotification >= 3; // Every 3 days otherwise
-    
-    case 'save':
+
+    case "save":
       // Savings goals get moderate frequency
       return daysSinceLastNotification >= 2;
-    
-    case 'learn':
+
+    case "learn":
       // Learning goals get regular reminders
       return daysSinceLastNotification >= 2;
-    
+
     default:
       return daysSinceLastNotification >= 3;
   }
@@ -260,7 +281,7 @@ async function shouldSendGoalNotification(goal: any, lastNotification: Date | nu
 async function generateNotificationWithAI(
   goal: any,
   preferences: any,
-  recentNotifications: any[]
+  recentNotifications: any[],
 ): Promise<{ message: string } | null> {
   try {
     const openAIResponse = await fetch(
@@ -276,7 +297,8 @@ async function generateNotificationWithAI(
           messages: [
             {
               role: "system",
-              content: `You are a ${preferences.personality} goal companion that sends personalized push notifications to help users stay motivated with their goals.
+              content:
+                `You are a ${preferences.personality} goal companion that sends personalized push notifications to help users stay motivated with their goals.
 
 PERSONALITY GUIDELINES:
 - serious: Professional, direct, focused on results
@@ -301,7 +323,7 @@ GOAL TYPES:
 Return ONLY a JSON object with this format:
 {"message": "Your notification text here"}
 
-The message should be a complete, ready-to-send push notification.`
+The message should be a complete, ready-to-send push notification.`,
             },
             {
               role: "user",
@@ -310,23 +332,27 @@ The message should be a complete, ready-to-send push notification.`
 GOAL DETAILS:
 - Title: ${goal.title}
 - Category: ${goal.category}
-- Description: ${goal.description || 'No description'}
+- Description: ${goal.description || "No description"}
 - Data: ${JSON.stringify(goal.data || {})}
 - XP Earned: ${goal.xp_earned}
 - Created: ${goal.created_at}
 
 RECENT NOTIFICATIONS (to avoid repetition):
-${recentNotifications.map(n => `- "${n.message}" (${n.scheduled_at})`).join('\n') || 'None'}
+${
+                recentNotifications.map((n) =>
+                  `- "${n.message}" (${n.scheduled_at})`
+                ).join("\n") || "None"
+              }
 
 USER PERSONALITY: ${preferences.personality}
 
-Create a personalized, motivating notification that helps the user take action on this goal.`
-            }
+Create a personalized, motivating notification that helps the user take action on this goal.`,
+            },
           ],
           temperature: 0.7,
           max_tokens: 150,
         }),
-      }
+      },
     );
 
     if (!openAIResponse.ok) {
@@ -355,24 +381,25 @@ Create a personalized, motivating notification that helps the user take action o
 function calculateScheduledTime(
   windowStart: number,
   windowEnd: number,
-  timezone: string
+  timezone: string,
 ): Date {
   const now = new Date();
-  
+
   // Create a date for today in the user's timezone
   const today = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
-  
+
   // Random time within the notification window
-  const randomHour = Math.floor(Math.random() * (windowEnd - windowStart + 1)) + windowStart;
+  const randomHour = Math.floor(Math.random() * (windowEnd - windowStart + 1)) +
+    windowStart;
   const randomMinute = Math.floor(Math.random() * 60);
-  
+
   const scheduledTime = new Date(today);
   scheduledTime.setHours(randomHour, randomMinute, 0, 0);
-  
+
   // If the time has already passed today, schedule for tomorrow
   if (scheduledTime <= now) {
     scheduledTime.setDate(scheduledTime.getDate() + 1);
   }
-  
+
   return scheduledTime;
 }

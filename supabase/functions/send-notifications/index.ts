@@ -20,20 +20,19 @@ serve(async (req) => {
       {
         auth: {
           autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+          persistSession: false,
+        },
+      },
     );
-
-    console.log("Starting notification sending...");
 
     // Get pending notifications that should be sent now
     const now = new Date();
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
-    const { data: pendingNotifications, error: fetchError } = await supabaseClient
-      .from("scheduled_notifications")
-      .select(`
+    const { data: pendingNotifications, error: fetchError } =
+      await supabaseClient
+        .from("scheduled_notifications")
+        .select(`
         id,
         user_id,
         goal_id,
@@ -41,8 +40,8 @@ serve(async (req) => {
         scheduled_at,
         goals(title, category)
       `)
-      .eq("status", "pending")
-      .lte("scheduled_at", fiveMinutesFromNow.toISOString());
+        .eq("status", "pending")
+        .lte("scheduled_at", fiveMinutesFromNow.toISOString());
 
     if (fetchError) {
       console.error("Error fetching pending notifications:", fetchError);
@@ -50,14 +49,11 @@ serve(async (req) => {
     }
 
     if (!pendingNotifications || pendingNotifications.length === 0) {
-      console.log("No pending notifications to send");
       return new Response(
         JSON.stringify({ success: true, sentCount: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    console.log(`Found ${pendingNotifications.length} notifications to send`);
 
     let sentCount = 0;
     let failedCount = 0;
@@ -74,28 +70,26 @@ serve(async (req) => {
       } catch (error) {
         console.error(`Error sending notification ${notification.id}:`, error);
         failedCount++;
-        
+
         // Mark as failed in database
         await supabaseClient
           .from("scheduled_notifications")
           .update({
             status: "failed",
-            sent_at: new Date().toISOString()
+            sent_at: new Date().toISOString(),
           })
           .eq("id", notification.id);
       }
     }
 
-    console.log(`Sent: ${sentCount}, Failed: ${failedCount}`);
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        sentCount, 
+      JSON.stringify({
+        success: true,
+        sentCount,
         failedCount,
-        totalProcessed: pendingNotifications.length 
+        totalProcessed: pendingNotifications.length,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Function error:", error);
@@ -104,12 +98,15 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
 
-async function sendNotification(supabaseClient: any, notification: any): Promise<boolean> {
+async function sendNotification(
+  supabaseClient: any,
+  notification: any,
+): Promise<boolean> {
   try {
     // Get user's device token
     const { data: deviceTokens, error: tokenError } = await supabaseClient
@@ -118,18 +115,20 @@ async function sendNotification(supabaseClient: any, notification: any): Promise
       .eq("user_id", notification.user_id);
 
     if (tokenError) {
-      console.error(`Error fetching device token for user ${notification.user_id}:`, tokenError);
+      console.error(
+        `Error fetching device token for user ${notification.user_id}:`,
+        tokenError,
+      );
       return false;
     }
 
     if (!deviceTokens || deviceTokens.length === 0) {
-      console.log(`No device token found for user ${notification.user_id}`);
       // Mark as failed - no device token
       await supabaseClient
         .from("scheduled_notifications")
         .update({
           status: "failed",
-          sent_at: new Date().toISOString()
+          sent_at: new Date().toISOString(),
         })
         .eq("id", notification.id);
       return false;
@@ -138,7 +137,7 @@ async function sendNotification(supabaseClient: any, notification: any): Promise
     // Prepare push notification payload
     const pushToken = deviceTokens[0].token;
     const goalTitle = notification.goals?.title || "Your Goal";
-    
+
     const pushPayload = {
       to: pushToken,
       title: goalTitle,
@@ -146,49 +145,57 @@ async function sendNotification(supabaseClient: any, notification: any): Promise
       data: {
         goalId: notification.goal_id,
         notificationId: notification.id,
-        category: notification.goals?.category
+        category: notification.goals?.category,
       },
-      sound: 'default',
+      sound: "default",
       badge: 1,
     };
 
     // Send to Expo Push API
-    const expoPushResponse = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Accept-encoding": "gzip, deflate",
-        "Content-Type": "application/json",
+    const expoPushResponse = await fetch(
+      "https://exp.host/--/api/v2/push/send",
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Accept-encoding": "gzip, deflate",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pushPayload),
       },
-      body: JSON.stringify(pushPayload),
-    });
+    );
 
     const expoPushResult = await expoPushResponse.json();
 
-    if (expoPushResponse.ok && expoPushResult.data && expoPushResult.data.status === 'ok') {
+    if (
+      expoPushResponse.ok && expoPushResult.data &&
+      expoPushResult.data.status === "ok"
+    ) {
       // Mark as sent
       await supabaseClient
         .from("scheduled_notifications")
         .update({
           status: "sent",
-          sent_at: new Date().toISOString()
+          sent_at: new Date().toISOString(),
         })
         .eq("id", notification.id);
 
-      console.log(`Successfully sent notification ${notification.id}`);
       return true;
     } else {
-      console.error(`Expo push failed for notification ${notification.id}:`, expoPushResult);
-      
+      console.error(
+        `Expo push failed for notification ${notification.id}:`,
+        expoPushResult,
+      );
+
       // Mark as failed
       await supabaseClient
         .from("scheduled_notifications")
         .update({
           status: "failed",
-          sent_at: new Date().toISOString()
+          sent_at: new Date().toISOString(),
         })
         .eq("id", notification.id);
-      
+
       return false;
     }
   } catch (error) {

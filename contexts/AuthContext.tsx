@@ -101,11 +101,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const setupNotificationsForNewUser = async (userId: string, token?: string) => {
-    console.log("🔔 setupNotificationsForNewUser called:", { userId, hasToken: !!token });
     
     if (token) {
       try {
-        console.log("💾 Saving device token to Supabase...");
         const { error } = await supabase
           .from("device_tokens")
           .upsert(
@@ -116,18 +114,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (error) {
           console.error("❌ Error saving push token during signup:", error);
         } else {
-          console.log("✅ Push token saved successfully during signup!");
         }
       } catch (error) {
         console.error("❌ Exception saving push token during signup:", error);
       }
     } else {
-      console.log("⚠️ No token provided to setupNotificationsForNewUser");
     }
   };
 
   const signUp = async (email: string, password: string) => {
-    console.log("📝 Starting signup process...", { email });
     
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -135,19 +130,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         password,
       });
 
-      console.log("📝 Signup result:", { 
-        hasError: !!error, 
-        hasData: !!data, 
-        hasUser: !!data?.user,
-        userId: data?.user?.id,
-        needsEmailConfirmation: !data?.session && data?.user && !data?.user?.email_confirmed_at
-      });
-
       if (!error && data.user) {
-        console.log("🔧 Creating initial user data...");
         // Create initial profile and preferences
         await createInitialUserData(data.user.id);
-        console.log("✅ Initial user data created");
       }
 
       return { data, error };

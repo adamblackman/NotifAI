@@ -31,30 +31,20 @@ export function AuthScreen() {
       return;
     }
 
-    console.log("🔐 Starting authentication...", { isSignUp, email });
     setLoading(true);
     try {
       const { data, error } = isSignUp 
         ? await signUp(email.trim(), password)
         : await signIn(email.trim(), password);
 
-      console.log("🔐 Auth result:", { 
-        hasError: !!error, 
-        hasData: !!data, 
-        hasUser: !!data?.user,
-        userId: data?.user?.id 
-      });
-
       if (error) {
         console.error("❌ Auth error:", error);
         Alert.alert('Error', error.message);
       } else if (isSignUp && data?.user) {
         // For new signups, show notification permission modal
-        console.log("🎉 Signup successful! Showing notification modal for user:", data.user.id);
         setNewUserId(data.user.id);
         setShowNotificationModal(true);
       } else if (!isSignUp && data?.user) {
-        console.log("✅ Sign in successful for user:", data.user.id);
       }
     } catch (error) {
       console.error("❌ Auth exception:", error);
@@ -65,26 +55,19 @@ export function AuthScreen() {
   };
 
   const handleNotificationPermission = async (allowNotifications: boolean) => {
-    console.log("🔔 Notification permission choice:", { allowNotifications, newUserId });
     
     if (allowNotifications && newUserId) {
       try {
-        console.log("🔔 Requesting notification permissions...");
         const { granted, token } = await requestNotificationPermissions();
-        console.log("🔔 Permission result:", { granted, hasToken: !!token });
         
         if (granted && token) {
-          console.log("💾 Setting up notifications for new user...");
           await setupNotificationsForNewUser(newUserId, token);
-          console.log("✅ Notification setup complete!");
         } else {
-          console.log("⚠️ Permission granted but no token received");
         }
       } catch (error) {
         console.error('❌ Error setting up notifications:', error);
       }
     } else {
-      console.log("⏭️ User skipped notification permissions");
     }
     
     setShowNotificationModal(false);

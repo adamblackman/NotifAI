@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGuest } from '@/contexts/GuestContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
 export function AuthScreen() {
@@ -18,6 +19,7 @@ export function AuthScreen() {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
   const { signIn, signUp, setupNotificationsForNewUser } = useAuth();
+  const { setGuestMode } = useGuest();
   const { requestNotificationPermissions } = useNotifications();
 
   const handleAuth = async () => {
@@ -76,6 +78,10 @@ export function AuthScreen() {
 
   const handleBoltLogoPress = () => {
     Linking.openURL('https://bolt.new/');
+  };
+
+  const handleGuestMode = () => {
+    setGuestMode(true);
   };
 
   return (
@@ -150,6 +156,10 @@ export function AuthScreen() {
             style={styles.switchButton}
           />
         </Card>
+
+        <TouchableOpacity onPress={handleGuestMode} style={styles.guestLink}>
+          <Text style={styles.guestText}>Try as Guest</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Notification Permission Modal */}
@@ -235,6 +245,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 12,
+  },
+  guestLink: {
+    marginTop: 24,
+    paddingVertical: 8,
+  },
+  guestText: {
+    fontSize: 12,
+    color: Colors.gray500,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

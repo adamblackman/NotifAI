@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { GuestProvider, useGuest } from '@/contexts/GuestContext';
 import { AuthScreen } from '@/components/auth/AuthScreen';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { NotificationBanner } from '@/components/ui/NotificationBanner';
@@ -11,6 +12,7 @@ import { router } from 'expo-router';
 
 function AuthenticatedLayout() {
   const { user, loading } = useAuth();
+  const { isGuestMode } = useGuest();
   const { notification, permissionStatus, requestNotificationPermissions } = useNotifications();
   const [currentNotification, setCurrentNotification] = useState<any>(null);
 
@@ -48,7 +50,7 @@ function AuthenticatedLayout() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !isGuestMode) {
     return <AuthScreen />;
   }
 
@@ -63,12 +65,14 @@ function AuthenticatedLayout() {
       </Stack>
       <StatusBar style="auto" />
       
-      {/* In-app notification banner */}
-      <NotificationBanner
-        notification={currentNotification}
-        onDismiss={handleNotificationDismiss}
-        onPress={handleNotificationPress}
-      />
+      {/* In-app notification banner (only for authenticated users) */}
+      {user && (
+        <NotificationBanner
+          notification={currentNotification}
+          onDismiss={handleNotificationDismiss}
+          onPress={handleNotificationPress}
+        />
+      )}
     </>
   );
 }
@@ -78,7 +82,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <AuthenticatedLayout />
+      <GuestProvider>
+        <AuthenticatedLayout />
+      </GuestProvider>
     </AuthProvider>
   );
 }

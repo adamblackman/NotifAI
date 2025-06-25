@@ -73,10 +73,7 @@ export function useDeleteAccount() {
         throw new Error("Failed to delete profile data");
       }
 
-      console.log("✅ All user data deleted successfully");
-
       // Step 2: Delete the authentication record via Edge Function
-      console.log("🔐 Deleting authentication record...");
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -99,8 +96,6 @@ export function useDeleteAccount() {
           const errorData = await response.json();
           throw new Error(errorData.error || "Failed to delete user from auth");
         }
-
-        console.log("✅ Authentication record deleted successfully");
       } catch (authError) {
         console.error("Error deleting auth user:", authError);
         // Continue with local cleanup even if auth deletion fails
@@ -108,28 +103,22 @@ export function useDeleteAccount() {
       }
 
       // Step 3: Clear local storage and session data
-      console.log("🧹 Clearing local storage...");
 
       try {
         await AsyncStorage.clear();
-        console.log("✅ Local storage cleared");
       } catch (storageError) {
         console.error("Error clearing local storage:", storageError);
         // Continue even if local storage clearing fails
       }
 
       // Step 4: Sign out from Supabase
-      console.log("👋 Signing out...");
 
       try {
         await supabase.auth.signOut();
-        console.log("✅ Signed out successfully");
       } catch (signOutError) {
         console.error("Error signing out:", signOutError);
         // Continue even if sign out fails
       }
-
-      console.log("🎉 Account deletion completed successfully");
     } catch (error) {
       console.error("❌ Account deletion failed:", error);
       throw error;

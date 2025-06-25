@@ -66,8 +66,6 @@ serve(async (req) => {
             );
         }
 
-        console.log(`🗑️ Deleting user: ${user.id}`);
-
         // Delete the user from Supabase Auth using admin privileges
         const { error: deleteError } = await supabaseAdmin.auth.admin
             .deleteUser(
@@ -91,8 +89,6 @@ serve(async (req) => {
                 },
             );
         }
-
-        console.log(`✅ Successfully deleted user: ${user.id}`);
 
         return new Response(
             JSON.stringify({

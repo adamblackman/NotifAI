@@ -18,9 +18,6 @@ export function useDeleteAccount() {
     setLoading(true);
 
     try {
-      // Step 1: Delete all user data from database tables
-      console.log("🗑️ Starting account deletion process...");
-
       // Delete scheduled notifications
       const { error: notificationsError } = await supabase
         .from("scheduled_notifications")

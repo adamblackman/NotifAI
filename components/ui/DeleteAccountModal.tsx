@@ -108,13 +108,13 @@ export function DeleteAccountModal({ visible, onClose, onConfirm, loading }: Del
               title="Cancel"
               onPress={handleClose}
               variant="outline"
-              style={[styles.button, styles.cancelButton]}
+              style={styles.button}
               disabled={loading}
             />
             <Button
-              title={loading ? "Deleting..." : "Permanently Delete Account"}
+              title={loading ? "Deleting..." : "Delete"}
               onPress={handleConfirm}
-              style={[styles.button, styles.deleteButton]}
+              style={{...styles.button, ...styles.deleteButton}}
               disabled={!isConfirmationValid || loading}
               textStyle={styles.deleteButtonText}
             />
@@ -242,9 +242,6 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-  },
-  cancelButton: {
-    borderColor: Colors.gray300,
   },
   deleteButton: {
     backgroundColor: Colors.error,

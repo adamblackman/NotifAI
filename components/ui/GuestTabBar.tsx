@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Home } from 'lucide-react-native';
+import { Chrome as Home } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useGuest } from '@/contexts/GuestContext';
 

@@ -5,7 +5,9 @@ interface GuestContextType {
   isGuestMode: boolean;
   guestGoals: Goal[];
   hasUsedAI: boolean;
+  showSignUp: boolean;
   setGuestMode: (enabled: boolean) => void;
+  setShowSignUp: (show: boolean) => void;
   addGuestGoal: (goal: Goal) => void;
   updateGuestGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGuestGoal: (id: string) => void;
@@ -23,6 +25,7 @@ export function GuestProvider({ children }: GuestProviderProps) {
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [guestGoals, setGuestGoals] = useState<Goal[]>([]);
   const [hasUsedAI, setHasUsedAI] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   const setGuestMode = (enabled: boolean) => {
     setIsGuestMode(enabled);
@@ -60,7 +63,9 @@ export function GuestProvider({ children }: GuestProviderProps) {
     isGuestMode,
     guestGoals,
     hasUsedAI,
+    showSignUp,
     setGuestMode,
+    setShowSignUp,
     addGuestGoal,
     updateGuestGoal,
     deleteGuestGoal,

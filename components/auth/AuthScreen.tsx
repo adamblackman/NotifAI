@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Linking, Modal } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -14,13 +14,19 @@ export function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const { showSignUp, setShowSignUp } = useGuest();
+  const [isSignUp, setIsSignUp] = useState(showSignUp);
   const [loading, setLoading] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
   const { signIn, signUp, setupNotificationsForNewUser } = useAuth();
   const { setGuestMode } = useGuest();
   const { requestNotificationPermissions } = useNotifications();
+
+  // Sync with guest context on mount
+  useEffect(() => {
+    setIsSignUp(showSignUp);
+  }, [showSignUp]);
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim() || (isSignUp && !confirmPassword.trim())) {
@@ -146,7 +152,9 @@ export function AuthScreen() {
           <Button
             title={isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             onPress={() => {
-              setIsSignUp(!isSignUp);
+              const newSignUpState = !isSignUp;
+              setIsSignUp(newSignUpState);
+              setShowSignUp(newSignUpState);
               setPassword('');
               setConfirmPassword('');
               setIsPasswordVisible(false);
@@ -252,7 +260,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   guestText: {
-    bottom: 190,
+    bottom: 170,
     fontSize: 12,
     color: Colors.gray500,
     textAlign: 'center',

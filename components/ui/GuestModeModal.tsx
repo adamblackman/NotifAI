@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { X, UserPlus } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Button } from '@/components/ui/Button';
+import { useGuest } from '@/contexts/GuestContext';
 
 interface GuestModeModalProps {
   visible: boolean;
@@ -11,6 +12,13 @@ interface GuestModeModalProps {
 }
 
 export function GuestModeModal({ visible, onClose, onCreateAccount }: GuestModeModalProps) {
+  const { setShowSignUp } = useGuest();
+  
+  const handleCreateAccount = () => {
+    setShowSignUp(true);
+    onCreateAccount();
+  };
+
   return (
     <Modal
       visible={visible}
@@ -54,7 +62,7 @@ export function GuestModeModal({ visible, onClose, onCreateAccount }: GuestModeM
             />
             <Button
               title="Create Account"
-              onPress={onCreateAccount}
+              onPress={handleCreateAccount}
               style={styles.button}
             />
           </View>
@@ -119,5 +127,6 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+    paddingHorizontal: 16, // Reduced from default 24px to fit text on one line
   },
 });

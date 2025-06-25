@@ -14,29 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    // Get the authorization header
-    const authHeader = req.headers.get("Authorization")!;
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    // Get the user from the auth header
-    const { data: { user }, error: userError } = await supabaseClient.auth
-      .getUser();
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const { thoughtInput } = await req.json();
+    const { thoughtInput, isGuest = false } = await req.json();
 
     if (!thoughtInput) {
       return new Response(
@@ -48,7 +26,50 @@ serve(async (req) => {
       );
     }
 
-    // Call OpenAI API
+    // For guest users, skip authentication and database operations
+    let user = null;
+    let supabaseClient = null;
+
+    if (!isGuest) {
+      // Get the authorization header
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({
+            error: "Authorization header required for authenticated users",
+          }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      supabaseClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } },
+      );
+
+      // Get the user from the auth header
+      const { data: { user: authenticatedUser }, error: userError } =
+        await supabaseClient.auth
+          .getUser();
+
+      if (userError || !authenticatedUser) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      user = authenticatedUser;
+    }
+
+    // Call OpenAI API (works for both guest and authenticated users)
     const openAIResponse = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -58,7 +79,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4.1-mini",
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "system",
@@ -211,9 +232,28 @@ Analyze the user input and identify distinct objectives, then generate ALL requi
         processedGoals.push(goalData);
       }
 
-      // Insert all goals into Supabase
+      // For guest users, return goals without saving to database
+      if (isGuest) {
+        const transformedGoals = processedGoals.map((goalData, index) => ({
+          id: Date.now().toString() + index, // Generate temporary ID for guest goals
+          title: goalData.title,
+          description: goalData.description || "",
+          category: goalData.category,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          xpEarned: 0,
+          ...(extractGoalData(goalData)),
+        }));
+
+        return new Response(
+          JSON.stringify({ goals: transformedGoals }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // For authenticated users, save to database
       const goalRecords = processedGoals.map((goalData) => ({
-        user_id: user.id,
+        user_id: user!.id,
         title: goalData.title,
         description: goalData.description || "",
         category: goalData.category,
@@ -221,7 +261,7 @@ Analyze the user input and identify distinct objectives, then generate ALL requi
         xp_earned: 0,
       }));
 
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabaseClient!
         .from("goals")
         .insert(goalRecords)
         .select();

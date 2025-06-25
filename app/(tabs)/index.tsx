@@ -53,12 +53,12 @@ export default function HomeScreen() {
     
     try {
       if (isGuestMode) {
-        // For guest mode, create mock goals locally
-        const mockGoals = createMockGoalsFromThought(thought);
-        mockGoals.forEach(goal => addGuestGoal(goal));
+        // For guest mode, use AI but store locally
+        const generatedGoals = await generateGoalFromThought(thought, true);
+        generatedGoals.forEach(goal => addGuestGoal(goal));
         markAIUsed();
         
-        const goalCount = mockGoals.length;
+        const goalCount = generatedGoals.length;
         const message = goalCount === 1 
           ? 'Your goal has been created successfully!' 
           : `${goalCount} goals have been created successfully!`;
@@ -66,7 +66,7 @@ export default function HomeScreen() {
         Alert.alert('Goals Created!', message, [{ text: 'OK' }]);
       } else {
         // Regular authenticated flow
-        const generatedGoals = await generateGoalFromThought(thought);
+        const generatedGoals = await generateGoalFromThought(thought, false);
         
         const newGoalIds = generatedGoals.map(goal => goal.id);
         setNewlyGeneratedGoalIds(newGoalIds);
@@ -98,25 +98,7 @@ export default function HomeScreen() {
     }
   };
 
-  const createMockGoalsFromThought = (thought: string) => {
-    // Simple mock goal creation for guest mode
-    const mockGoal = {
-      id: Date.now().toString(),
-      title: thought.length > 30 ? thought.substring(0, 30) + '...' : thought,
-      description: `Generated from: "${thought}"`,
-      category: 'habit' as const,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      xpEarned: 0,
-      frequency: [true, true, true, true, true, false, false],
-      streak: 0,
-      completions: {},
-      completedDates: [],
-      targetDays: 30,
-    };
-    
-    return [mockGoal];
-  };
+
 
   const handleGoalPress = (goalId: string) => {
     if (isGuestMode) {
@@ -171,7 +153,7 @@ export default function HomeScreen() {
           )}
         </ScrollView>
         
-        <FloatingActionButton onPress={handleManualCreate} />
+        <FloatingActionButton onPress={handleManualCreate} isGuestMode={isGuestMode} />
 
         <GuestModeModal
           visible={showGuestModal}

@@ -10,9 +10,10 @@ interface GuestTabBarProps {
 }
 
 export function GuestTabBar({ state, descriptors, navigation }: GuestTabBarProps) {
-  const { setGuestMode } = useGuest();
+  const { setGuestMode, setShowSignUp } = useGuest();
 
   const handleCreateAccount = () => {
+    setShowSignUp(true);
     setGuestMode(false);
   };
 

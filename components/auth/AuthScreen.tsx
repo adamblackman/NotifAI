@@ -156,11 +156,11 @@ export function AuthScreen() {
             style={styles.switchButton}
           />
         </Card>
-
-        <TouchableOpacity onPress={handleGuestMode} style={styles.guestLink}>
-          <Text style={styles.guestText}>Try as Guest</Text>
-        </TouchableOpacity>
       </View>
+
+      <TouchableOpacity onPress={handleGuestMode} style={styles.guestLink}>
+        <Text style={styles.guestText}>Try as Guest</Text>
+      </TouchableOpacity>
 
       {/* Notification Permission Modal */}
       <Modal
@@ -247,10 +247,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   guestLink: {
-    marginTop: 24,
-    paddingVertical: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignSelf: 'center',
   },
   guestText: {
+    bottom: 190,
     fontSize: 12,
     color: Colors.gray500,
     textAlign: 'center',

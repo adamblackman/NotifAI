@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Ale
 import Slider from '@react-native-community/slider';
 import { Colors } from '@/constants/Colors';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
+import { DeleteAccountModal } from '@/components/ui/DeleteAccountModal';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -19,10 +21,12 @@ const personalityOptions = [
 export default function PreferencesScreen() {
   const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays } = usePreferences();
   const { signOut } = useAuth();
+  const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
   const [startTime, setStartTime] = useState(preferences.notificationWindow.start);
   const [endTime, setEndTime] = useState(preferences.notificationWindow.end);
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -75,6 +79,28 @@ export default function PreferencesScreen() {
         },
       ]
     );
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await deleteAccount();
+      
+      // Show success message
+      Alert.alert(
+        'Account Deleted',
+        'Your account has been permanently deleted. All your data has been removed from our servers.',
+        [{ text: 'OK' }]
+      );
+      
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      Alert.alert(
+        'Deletion Failed',
+        'There was an error deleting your account. Please try again or contact support if the problem persists.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const getCurrentPersonalityLabel = () => {
@@ -193,9 +219,31 @@ export default function PreferencesScreen() {
             <Text style={styles.logoutButtonText}>Log Out</Text>
           </TouchableOpacity>
         </Card>
+
+        <Card style={styles.deleteSection}>
+          <TouchableOpacity 
+            style={styles.deleteButton} 
+            onPress={() => setShowDeleteModal(true)}
+            disabled={deleteLoading}
+          >
+            <Text style={styles.deleteButtonText}>
+              {deleteLoading ? 'Deleting Account...' : 'Delete Account'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.deleteWarning}>
+            ⚠️ This action cannot be undone. All your data will be permanently deleted.
+          </Text>
+        </Card>
         
         <View style={styles.bottomPadding} />
         </ScrollView>
+
+        <DeleteAccountModal
+          visible={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteAccount}
+          loading={deleteLoading}
+        />
       </View>
     </SafeAreaView>
   );
@@ -367,5 +415,29 @@ const styles = StyleSheet.create({
   logoutSection: {
     margin: 20,
     zIndex: -1,
+  },
+  deleteSection: {
+    margin: 20,
+    marginTop: 0,
+    zIndex: -1,
+  },
+  deleteButton: {
+    backgroundColor: '#dc2626',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  deleteButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteWarning: {
+    fontSize: 12,
+    color: '#dc2626',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });

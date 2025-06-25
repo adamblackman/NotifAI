@@ -2,20 +2,24 @@ import { useEffect, useState } from "react";
 import { Goal, GoalCategory } from "@/types/Goal";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGuest } from "@/contexts/GuestContext";
 
 export function useGoals() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { isGuestMode, guestGoals, updateGuestGoal } = useGuest();
 
   useEffect(() => {
-    if (user) {
+    if (user && !isGuestMode) {
       fetchGoals();
+    } else if (isGuestMode) {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, isGuestMode]);
 
   const fetchGoals = async () => {
-    if (!user) return;
+    if (!user || isGuestMode) return;
 
     try {
       const { data, error } = await supabase
@@ -36,6 +40,11 @@ export function useGoals() {
   };
 
   const createGoal = async (goalData: Partial<Goal>) => {
+    if (isGuestMode) {
+      // This shouldn't be called in guest mode, but handle it gracefully
+      return null;
+    }
+
     if (!user) throw new Error("User not authenticated");
 
     try {
@@ -72,6 +81,12 @@ export function useGoals() {
   };
 
   const updateGoal = async (id: string, updates: Partial<Goal>) => {
+    if (isGuestMode) {
+      // Update guest goal locally
+      updateGuestGoal(id, updates);
+      return guestGoals.find(g => g.id === id);
+    }
+
     if (!user) throw new Error("User not authenticated");
 
     try {
@@ -135,6 +150,11 @@ export function useGoals() {
   };
 
   const deleteGoal = async (id: string) => {
+    if (isGuestMode) {
+      // This is handled in the context
+      return;
+    }
+
     if (!user) throw new Error("User not authenticated");
 
     try {
@@ -160,6 +180,18 @@ export function useGoals() {
   };
 
   const completeGoal = async (id: string) => {
+    if (isGuestMode) {
+      // Handle guest goal completion locally
+      const goal = guestGoals.find(g => g.id === id);
+      if (goal) {
+        updateGuestGoal(id, { 
+          completedAt: new Date(),
+          xpEarned: goal.xpEarned + 100
+        });
+      }
+      return 100;
+    }
+
     if (!user) throw new Error("User not authenticated");
 
     try {
@@ -189,10 +221,6 @@ export function useGoals() {
         prev.map((goal) => goal.id === id ? completedGoal : goal)
       );
 
-      // Update user profile with completion XP
-      // Note: This will be handled by the addXP function in the tracking components
-      // when they call completeGoal. For manual completion, we should also add XP.
-
       return completionXP;
     } catch (error) {
       console.error("Error completing goal:", error);
@@ -201,14 +229,16 @@ export function useGoals() {
   };
 
   const getGoalsByCategory = (category: GoalCategory) => {
-    return goals.filter((goal) =>
+    const currentGoals = isGuestMode ? guestGoals : goals;
+    return currentGoals.filter((goal) =>
       goal.category === category && !goal.completedAt
     );
   };
 
   const getActiveCategories = (): GoalCategory[] => {
+    const currentGoals = isGuestMode ? guestGoals : goals;
     const categories = new Set(
-      goals
+      currentGoals
         .filter((goal) => !goal.completedAt)
         .map((goal) => goal.category),
     );
@@ -300,9 +330,10 @@ export function useGoals() {
   };
 
   const getGoalsSortedByCompletion = (category?: GoalCategory): Goal[] => {
+    const currentGoals = isGuestMode ? guestGoals : goals;
     let filteredGoals = category
-      ? goals.filter((g) => g.category === category)
-      : goals;
+      ? currentGoals.filter((g) => g.category === category)
+      : currentGoals;
 
     // Sort: incomplete goals first, then completed goals
     return filteredGoals.sort((a, b) => {
@@ -319,7 +350,7 @@ export function useGoals() {
   };
 
   return {
-    goals,
+    goals: isGuestMode ? guestGoals : goals,
     loading,
     createGoal,
     updateGoal,

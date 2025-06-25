@@ -120,11 +120,11 @@ export default function HomeScreen() {
 
   const handleGoalPress = (goalId: string) => {
     if (isGuestMode) {
-      Alert.alert(
-        'Guest Mode',
-        'Goal tracking is available with a full account. Create an account to track your progress!',
-        [{ text: 'OK' }]
-      );
+      // Allow tracking in guest mode
+      const goal = guestGoals.find(g => g.id === goalId);
+      if (goal) {
+        router.push(`/tracking/${goal.category}?goalId=${goalId}`);
+      }
       return;
     }
 
@@ -135,14 +135,7 @@ export default function HomeScreen() {
   };
 
   const handleManualCreate = () => {
-    if (isGuestMode) {
-      Alert.alert(
-        'Guest Mode',
-        'Manual goal creation is available with a full account. Create an account to access all features!',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+    // Allow manual goal creation in guest mode
     router.push('/create-goal');
   };
 

@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
+import { useGuest } from '@/contexts/GuestContext';
 import { HabitGoal, ProjectGoal, LearnGoal, SaveGoal } from '@/types/Goal';
 import { HabitTracker } from '@/components/tracking/HabitTracker';
 import { ProjectTracker } from '@/components/tracking/ProjectTracker';
@@ -14,12 +15,15 @@ import { SaveTracker } from '@/components/tracking/SaveTracker';
 export default function TrackingScreen() {
   const { category, goalId } = useLocalSearchParams<{ category: string; goalId?: string }>();
   const { goals, deleteGoal } = useGoals();
+  const { isGuestMode, guestGoals, deleteGuestGoal } = useGuest();
   
-  const categoryGoals = goals.filter(goal => 
+  // Use appropriate goals based on mode
+  const allGoals = isGuestMode ? guestGoals : goals;
+  const categoryGoals = allGoals.filter(goal => 
     goal.category === category && !goal.completedAt
   );
 
-  const specificGoal = goalId ? goals.find(g => g.id === goalId) : null;
+  const specificGoal = goalId ? allGoals.find(g => g.id === goalId) : null;
   const displayGoals = specificGoal ? [specificGoal] : categoryGoals;
 
   const getCategoryTitle = () => {
@@ -49,11 +53,17 @@ export default function TrackingScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteGoal(goalToDelete.id);
+              if (isGuestMode) {
+                deleteGuestGoal(goalToDelete.id);
+              } else {
+                await deleteGoal(goalToDelete.id);
+              }
               router.back();
             } catch (error) {
               console.error('Error deleting goal:', error);
-              Alert.alert('Error', 'Failed to delete goal. Please try again.');
+              if (!isGuestMode) {
+                Alert.alert('Error', 'Failed to delete goal. Please try again.');
+              }
             }
           },
         },

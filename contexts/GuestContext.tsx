@@ -38,7 +38,7 @@ export function GuestProvider({ children }: GuestProviderProps) {
   const updateGuestGoal = (id: string, updates: Partial<Goal>) => {
     setGuestGoals(prev => 
       prev.map(goal => 
-        goal.id === id ? { ...goal, ...updates } : goal
+        goal.id === id ? { ...goal, ...updates, updatedAt: new Date() } : goal
       )
     );
   };

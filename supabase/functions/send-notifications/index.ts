@@ -94,7 +94,9 @@ serve(async (req) => {
   } catch (error) {
     console.error("Function error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({
+        error: (error as Error).message || "Internal server error",
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -146,8 +148,17 @@ async function sendNotification(
         goalId: notification.goal_id,
         notificationId: notification.id,
         category: notification.goals?.category,
+        userId: notification.user_id,
       },
       sound: "default",
+      categoryId: "GOAL_COMPLETION",
+      actions: [
+        {
+          identifier: "COMPLETE_ACTION",
+          title: "Complete",
+          options: ["foreground"],
+        },
+      ],
     };
 
     // Send to Expo Push API

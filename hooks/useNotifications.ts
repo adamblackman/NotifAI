@@ -47,8 +47,52 @@ export function useNotifications() {
 
     // Listen for notification responses (user tapped notification)
     const responseListener = Notifications
-      .addNotificationResponseReceivedListener((response) => {
+      .addNotificationResponseReceivedListener(async (response) => {
         const data = response.notification.request.content.data;
+        const actionIdentifier = response.actionIdentifier;
+
+        // Handle completion action
+        if (
+          actionIdentifier === "COMPLETE_ACTION" && data?.goalId &&
+          data?.category && data?.userId
+        ) {
+          try {
+            const completionResponse = await fetch(
+              "https://uhnvncqogcfgkdhlvmzq.supabase.co/functions/v1/complete-goal-action",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization":
+                    `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobnZuY3FvZ2NmZ2tkaGx2bXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4MjE3NDAsImV4cCI6MjA2NDM5Nzc0MH0.rYRstoYB-yfg9N8SxmZPaSGQg9lA4iCkGEF6raoQ2CQ`,
+                },
+                body: JSON.stringify({
+                  goalId: data.goalId,
+                  userId: data.userId,
+                  category: data.category,
+                }),
+              },
+            );
+
+            const result = await completionResponse.json();
+
+            if (result.success) {
+              // Show a success notification
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: "Success!",
+                  body: result.message,
+                  sound: "default",
+                },
+                trigger: null, // Show immediately
+              });
+            } else {
+              console.error("Failed to complete goal action:", result.error);
+            }
+          } catch (error) {
+            console.error("Error calling completion function:", error);
+          }
+        }
 
         // Handle deep linking based on notification data
         if (data?.goalId) {
@@ -81,6 +125,19 @@ export function useNotifications() {
           lightColor: "#FF231F7C",
           showBadge: false,
         });
+      }
+
+      if (Platform.OS === "ios") {
+        // Register notification categories for interactive notifications
+        await Notifications.setNotificationCategoryAsync("GOAL_COMPLETION", [
+          {
+            identifier: "COMPLETE_ACTION",
+            buttonTitle: "Complete",
+            options: {
+              opensAppToForeground: true,
+            },
+          },
+        ]);
       }
 
       if (!Device.isDevice) {
@@ -143,6 +200,19 @@ export function useNotifications() {
         lightColor: "#FF231F7C",
         showBadge: false,
       });
+    }
+
+    if (Platform.OS === "ios") {
+      // Register notification categories for interactive notifications
+      await Notifications.setNotificationCategoryAsync("GOAL_COMPLETION", [
+        {
+          identifier: "COMPLETE_ACTION",
+          buttonTitle: "Complete",
+          options: {
+            opensAppToForeground: true,
+          },
+        },
+      ]);
     }
 
     if (Device.isDevice) {

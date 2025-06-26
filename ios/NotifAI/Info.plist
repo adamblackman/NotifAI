@@ -51,6 +51,31 @@
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
     </array>
+    <key>UNUserNotificationCenter</key>
+    <dict>
+      <key>UNNotificationCategories</key>
+      <array>
+        <dict>
+          <key>UNNotificationCategoryIdentifier</key>
+          <string>GOAL_COMPLETION</string>
+          <key>UNNotificationCategoryActions</key>
+          <array>
+            <dict>
+              <key>UNNotificationActionIdentifier</key>
+              <string>COMPLETE_ACTION</string>
+              <key>UNNotificationActionTitle</key>
+              <string>Complete</string>
+              <key>UNNotificationActionOptions</key>
+              <integer>1</integer>
+            </dict>
+          </array>
+          <key>UNNotificationCategoryIntentIdentifiers</key>
+          <array/>
+          <key>UNNotificationCategoryOptions</key>
+          <integer>0</integer>
+        </dict>
+      </array>
+    </dict>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

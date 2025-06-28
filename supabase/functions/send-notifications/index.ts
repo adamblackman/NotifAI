@@ -60,30 +60,38 @@ serve(async (req) => {
     let failedCount = 0;
 
     // Group notifications by channel type
-    const notificationsByChannel = pendingNotifications.reduce((acc, notification) => {
-      const channel = notification.channel || 'push';
-      if (!acc[channel]) {
-        acc[channel] = [];
-      }
-      acc[channel].push(notification);
-      return acc;
-    }, {} as Record<string, any[]>);
+    const notificationsByChannel = pendingNotifications.reduce(
+      (acc, notification) => {
+        const channel = notification.channel || "push";
+        if (!acc[channel]) {
+          acc[channel] = [];
+        }
+        acc[channel].push(notification);
+        return acc;
+      },
+      {} as Record<string, any[]>,
+    );
 
     // Process each channel type
-    for (const [channel, notifications] of Object.entries(notificationsByChannel)) {
+    for (
+      const [channel, notifications] of Object.entries(notificationsByChannel)
+    ) {
       for (const notification of notifications) {
         try {
           let success = false;
-          
+
           switch (channel) {
-            case 'push':
-              success = await sendPushNotification(supabaseClient, notification);
+            case "push":
+              success = await sendPushNotification(
+                supabaseClient,
+                notification,
+              );
               break;
-            case 'email':
-              success = await sendEmailNotification(supabaseClient, notification);
-              break;
-            case 'whatsapp':
-              success = await sendWhatsAppNotification(supabaseClient, notification);
+            case "whatsapp":
+              success = await sendWhatsAppNotification(
+                supabaseClient,
+                notification,
+              );
               break;
             default:
               console.warn(`Unknown notification channel: ${channel}`);
@@ -96,7 +104,10 @@ serve(async (req) => {
             failedCount++;
           }
         } catch (error) {
-          console.error(`Error sending notification ${notification.id}:`, error);
+          console.error(
+            `Error sending notification ${notification.id}:`,
+            error,
+          );
           failedCount++;
 
           // Mark as failed in database
@@ -238,62 +249,10 @@ async function sendPushNotification(
       return false;
     }
   } catch (error) {
-    console.error(`Error in sendPushNotification for ${notification.id}:`, error);
-    return false;
-  }
-}
-
-async function sendEmailNotification(
-  supabaseClient: any,
-  notification: any,
-): Promise<boolean> {
-  try {
-    // Call the email notification edge function
-    const emailResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email-notification`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
-          goalId: notification.goal_id,
-          userId: notification.user_id,
-          message: notification.message,
-          subject: `${notification.goals?.title || "Goal"} Reminder`,
-        }),
-      },
+    console.error(
+      `Error in sendPushNotification for ${notification.id}:`,
+      error,
     );
-
-    if (emailResponse.ok) {
-      // Mark as sent
-      await supabaseClient
-        .from("scheduled_notifications")
-        .update({
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", notification.id);
-
-      return true;
-    } else {
-      const errorText = await emailResponse.text();
-      console.error(`Email send failed for notification ${notification.id}:`, errorText);
-
-      // Mark as failed
-      await supabaseClient
-        .from("scheduled_notifications")
-        .update({
-          status: "failed",
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", notification.id);
-
-      return false;
-    }
-  } catch (error) {
-    console.error(`Error in sendEmailNotification for ${notification.id}:`, error);
     return false;
   }
 }
@@ -310,7 +269,9 @@ async function sendWhatsAppNotification(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Authorization": `Bearer ${
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+          }`,
         },
         body: JSON.stringify({
           goalId: notification.goal_id,
@@ -333,7 +294,10 @@ async function sendWhatsAppNotification(
       return true;
     } else {
       const errorText = await whatsappResponse.text();
-      console.error(`WhatsApp send failed for notification ${notification.id}:`, errorText);
+      console.error(
+        `WhatsApp send failed for notification ${notification.id}:`,
+        errorText,
+      );
 
       // Mark as failed
       await supabaseClient
@@ -347,7 +311,10 @@ async function sendWhatsAppNotification(
       return false;
     }
   } catch (error) {
-    console.error(`Error in sendWhatsAppNotification for ${notification.id}:`, error);
+    console.error(
+      `Error in sendWhatsAppNotification for ${notification.id}:`,
+      error,
+    );
     return false;
   }
 }

@@ -10,7 +10,7 @@ export interface BaseGoal {
   completedAt?: Date;
   xpEarned: number;
   order?: number;
-  notificationChannels?: string[]; // Array of notification channels (push, email, whatsapp)
+  notificationChannels?: string[]; // Array of notification channels (push, whatsapp)
 }
 
 export interface HabitGoal extends BaseGoal {

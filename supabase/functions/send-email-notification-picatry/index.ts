@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { goalId, userId, message } = await req.json();
+    const { goalId, userId, message, subject } = await req.json();
 
     if (!goalId || !userId || !message) {
       return new Response(
@@ -37,16 +37,16 @@ serve(async (req) => {
       },
     );
 
-    // Get user's phone from profiles
+    // Get user's email from profiles
     const { data: profile, error: profileError } = await supabaseClient
       .from("profiles")
-      .select("phone_number")
+      .select("email")
       .eq("id", userId)
       .single();
 
-    if (profileError || !profile?.phone_number) {
+    if (profileError || !profile?.email) {
       return new Response(
-        JSON.stringify({ error: "User phone number not found" }),
+        JSON.stringify({ error: "User email not found" }),
         {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,42 +54,48 @@ serve(async (req) => {
       );
     }
 
-    // Format phone number for WhatsApp
-    const toNumber = `whatsapp:${profile.phone_number}`;
-    const fromNumber = `whatsapp:${
-      Deno.env.get("TWILIO_WHATSAPP_NUMBER") ?? ""
-    }`;
+    // Create MIME message
+    const mimeMessage = `To: ${profile.email}
+Subject: ${subject || "Your Goal Update"}
+Content-Type: text/plain; charset=UTF-8
 
-    // Get Twilio credentials
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+${message}
 
-    // Send WhatsApp message using Template (required for Business API)
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+Best regards,
+Your NotifAI Assistant`;
+
+    // Base64url encode the MIME message
+    const encoder = new TextEncoder();
+    const data = encoder.encode(mimeMessage);
+    const base64url = btoa(String.fromCharCode(...data))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+
+    // Send email via Pica Gmail API
+    const emailResponse = await fetch(
+      "https://api.picaos.com/v1/passthrough/users/me/messages/send",
       {
         method: "POST",
         headers: {
-          "Authorization": `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
+          "x-pica-secret": Deno.env.get("PICA_SECRET_KEY") ?? "",
+          "x-pica-connection-key": Deno.env.get("PICA_GMAIL_CONNECTION_KEY") ??
+            "",
+          "x-pica-action-id":
+            "conn_mod_def::F_JeJ_A_TKg::cc2kvVQQTiiIiLEDauy6zQ",
         },
-        body: new URLSearchParams({
-          To: toNumber,
-          From: fromNumber,
-          // Use WhatsApp Message Template - replace with your actual ContentSid after template approval
-          ContentSid: "HX8599450e2cb524eb020b50d8157d685c", // Get this from Twilio Console after template approval
-          ContentVariables: JSON.stringify({
-            "1": message, // This will be inserted into {{1}} in your template
-          }),
+        body: JSON.stringify({
+          raw: base64url,
         }),
       },
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("WhatsApp send failed:", errorText);
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      console.error("Email send failed:", errorText);
       return new Response(
-        JSON.stringify({ error: "Failed to send WhatsApp message" }),
+        JSON.stringify({ error: "Failed to send email" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -97,14 +103,13 @@ serve(async (req) => {
       );
     }
 
-    const whatsappResult = await response.json();
+    const emailResult = await emailResponse.json();
 
     return new Response(
       JSON.stringify({
         success: true,
-        messageId: whatsappResult.sid,
-        status: whatsappResult.status,
-        message: "WhatsApp message sent successfully",
+        messageId: emailResult.id,
+        message: "Email sent successfully",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

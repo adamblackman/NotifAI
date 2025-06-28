@@ -35,29 +35,6 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
       return;
     }
 
-    // Check if email is being added
-    if (
-      channels.includes('email') &&
-      !originalChannels.includes('email') &&
-      !profile.email
-    ) {
-      Alert.alert(
-        'Email Required',
-        'Please add your email address in Settings to receive email notifications.',
-        [{ text: 'OK' }]
-      );
-      
-      // Remove email from channels if user doesn't have an email
-      const updatedChannels = channels.filter(c => c !== 'email');
-      
-      // If channels are the same as before, don't update
-      if (JSON.stringify(updatedChannels) === JSON.stringify(originalChannels)) {
-        return;
-      }
-      
-      channels = updatedChannels;
-    }
-
     try {
       await updateGoal(goal.id, {
         notificationChannels: channels,

@@ -29,30 +29,6 @@ export function NotificationChannelFormSelector({
       return;
     }
 
-    // Check if email is being added
-    if (
-      channels.includes('email') &&
-      !originalChannels.includes('email') &&
-      !profile.email
-    ) {
-      Alert.alert(
-        'Email Required',
-        'Please add your email address in Settings to receive email notifications.',
-        [{ text: 'OK' }]
-      );
-      
-      // Remove email from channels if user doesn't have an email
-      const updatedChannels = channels.filter(c => c !== 'email');
-      
-      // If channels are the same as before, don't update
-      if (JSON.stringify(updatedChannels) === JSON.stringify(originalChannels)) {
-        return;
-      }
-      
-      onChannelsChange(updatedChannels);
-      return;
-    }
-
     onChannelsChange(channels);
   };
 
@@ -78,10 +54,8 @@ export function NotificationChannelFormSelector({
   return (
     <View style={styles.container}>
       <NotificationChannelSelector
-        key={JSON.stringify(selectedChannels)}
         selectedChannels={selectedChannels}
         onChannelsChange={handleChannelsChange}
-        showTitle={true}
       />
 
       <PhoneNumberModal

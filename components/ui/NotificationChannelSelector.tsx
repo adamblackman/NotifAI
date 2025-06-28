@@ -16,12 +16,6 @@ const channelConfig = {
     label: 'Push',
     color: Colors.primary,
   },
-  email: {
-    icon: 'image',
-    label: 'Gmail',
-    color: '#EA4335',
-    imageSource: require('@/assets/images/gmail.png'),
-  },
   whatsapp: {
     icon: 'image',
     label: 'WhatsApp',
@@ -33,7 +27,7 @@ const channelConfig = {
 export function NotificationChannelSelector({ 
   selectedChannels, 
   onChannelsChange,
-  availableChannels = ['push', 'email', 'whatsapp'],
+  availableChannels = ['push', 'whatsapp'],
   showTitle = true
 }: NotificationChannelSelectorProps) {
   const toggleChannel = (channel: string) => {

@@ -84,15 +84,12 @@ export default function PreferencesScreen() {
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [email, setEmail] = useState(profile.email || '');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState(countries[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCountryPicker, setShowCountryPicker] = useState(false);
 
   useEffect(() => {
-    setEmail(profile.email || '');
-    
     // Parse existing phone number to extract country code and number
     if (profile.phoneNumber) {
       const fullNumber = profile.phoneNumber;
@@ -109,7 +106,7 @@ export default function PreferencesScreen() {
         setPhoneNumber(fullNumber.startsWith('+') ? fullNumber.substring(1) : fullNumber);
       }
     }
-  }, [profile.email, profile.phoneNumber]);
+  }, [profile.phoneNumber]);
 
   const filteredCountries = countries.filter(country =>
     country.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -146,12 +143,7 @@ export default function PreferencesScreen() {
 
   const handleContactInfoSave = async () => {
     try {
-      const updates: { email?: string; phoneNumber?: string; countryCode?: string } = {};
-      
-      // Only update email if it has a value
-      if (email && email.trim()) {
-        updates.email = email.trim();
-      }
+      const updates: { phoneNumber?: string; countryCode?: string } = {};
       
       // Only update phone if it has a value and is in correct format
       if (phoneNumber && phoneNumber.trim()) {
@@ -168,10 +160,10 @@ export default function PreferencesScreen() {
       }
       
       await updateProfile(updates);
-      Alert.alert('Success', 'Contact information updated successfully!');
+      Alert.alert('Success', 'Phone number updated successfully!');
     } catch (error) {
-      console.error('Error updating contact info:', error);
-      Alert.alert('Error', 'Failed to update contact information. Please try again.');
+      console.error('Error updating phone number:', error);
+      Alert.alert('Error', 'Failed to update phone number. Please try again.');
     }
   };
 
@@ -239,19 +231,10 @@ export default function PreferencesScreen() {
         scrollEventThrottle={16}
       >
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Information</Text>
+          <Text style={styles.sectionTitle}>WhatsApp Notifications</Text>
           <Text style={styles.sectionDescription}>
-            Add your email and phone number to receive notifications via multiple channels
+            Add your phone number to receive WhatsApp notifications
           </Text>
-          
-          <Input
-            placeholder="Email address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-          />
           
           <View style={styles.phoneInputContainer}>
             <TouchableOpacity 
@@ -305,7 +288,7 @@ export default function PreferencesScreen() {
           )}
           
           <TouchableOpacity style={styles.saveButton} onPress={handleContactInfoSave}>
-            <Text style={styles.saveButtonText}>Save Contact Info</Text>
+            <Text style={styles.saveButtonText}>Save Phone Number</Text>
           </TouchableOpacity>
         </Card>
         

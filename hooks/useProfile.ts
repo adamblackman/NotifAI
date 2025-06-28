@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { MedalType, UserProfile } from "@/types/Goal";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { Alert } from "react-native";
 
 const calculateLevel = (xp: number): number => {
   if (typeof xp !== "number" || isNaN(xp) || xp < 0) {
@@ -10,25 +11,40 @@ const calculateLevel = (xp: number): number => {
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 };
 
+export interface Profile {
+  id: string;
+  username: string;
+  totalXP: number;
+  level: number;
+  phoneNumber?: string;
+  countryCode?: string;
+  achievements: { medal: string; category: string; awardedAt: string }[];
+  xp: number;
+  medals: {
+    habit: string[];
+    project: string[];
+    learn: string[];
+    save: string[];
+  };
+}
+
 export function useProfile() {
-  const [profile, setProfile] = useState<UserProfile & { 
-    phoneNumber?: string; 
-    countryCode?: string; 
-    email?: string; 
-  }>({
-    id: "1",
-    xp: 0,
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<Profile>({
+    id: "",
+    username: "",
+    totalXP: 0,
     level: 1,
+    achievements: [],
+    xp: 0,
     medals: {
       habit: [],
       project: [],
       learn: [],
       save: [],
     },
-    phoneNumber: '',
-    countryCode: '',
-    email: '',
   });
+  const [loading, setLoading] = useState(true);
   const [goalsXPBreakdown, setGoalsXPBreakdown] = useState<{
     habit: number;
     project: number;
@@ -41,38 +57,73 @@ export function useProfile() {
     save: 0,
   });
   const [achievementXP, setAchievementXP] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
 
   const fetchProfile = async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
+
+      // Get the user profile
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
 
+        // If profile doesn't exist, create a default one
+        if (profileError.code === "PGRST116") {
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert([
+              {
+                id: user.id,
+                username: user.email?.split("@")[0] || "User",
+                total_xp: 0,
+                level: 1,
+                achievements: [],
+              },
+            ])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error("Error creating profile:", createError);
+            return;
+          }
+
+          setProfile({
+            id: newProfile.id,
+            username: newProfile.username,
+            totalXP: newProfile.total_xp,
+            level: newProfile.level,
+            phoneNumber: newProfile.phone_number,
+            countryCode: newProfile.country_code,
+            achievements: newProfile.achievements || [],
+            xp: newProfile.total_xp,
+            medals: {
+              habit: [],
+              project: [],
+              learn: [],
+              save: [],
+            },
+          });
+        }
+        return;
+      }
+
+      // Get goals data for XP breakdown
       const { data: goalsData, error: goalsError } = await supabase
         .from("goals")
         .select("xp_earned, category")
         .eq("user_id", user.id);
 
-      if (goalsError) throw goalsError;
-
-      const goalsXP = goalsData.reduce(
-        (sum, goal) => sum + (goal.xp_earned || 0),
-        0,
-      );
+      if (goalsError) {
+        console.error("Error fetching goals:", goalsError);
+      }
 
       const breakdown = {
         habit: 0,
@@ -81,72 +132,85 @@ export function useProfile() {
         save: 0,
       };
 
-      goalsData.forEach((goal) => {
-        if (goal.category && goal.xp_earned) {
-          breakdown[goal.category as keyof typeof breakdown] += goal.xp_earned;
+      if (goalsData) {
+        goalsData.forEach((goal) => {
+          if (goal.category && goal.xp_earned) {
+            breakdown[goal.category as keyof typeof breakdown] +=
+              goal.xp_earned;
+          }
+        });
+      }
+
+      setGoalsXPBreakdown(breakdown);
+
+      // Convert achievements to legacy medal format
+      const medals: {
+        habit: string[];
+        project: string[];
+        learn: string[];
+        save: string[];
+      } = {
+        habit: [],
+        project: [],
+        learn: [],
+        save: [],
+      };
+
+      const achievements = profileData.achievements || [];
+      // For now, just mark completion medals as bronze
+      achievements.forEach((achievement: any) => {
+        if (achievement.medal.endsWith("_completion")) {
+          const category = achievement.category;
+          if (medals[category as keyof typeof medals]) {
+            medals[category as keyof typeof medals].push("bronze");
+          }
         }
       });
 
-      // Calculate achievement XP from medals
-      const medals = profileData.medals ||
-        { habit: [], project: [], learn: [], save: [] };
-      const medalXPValues = {
-        bronze: 10,
-        silver: 100,
-        gold: 1000,
-        diamond: 10000,
-      };
-
-      const achievementsXP = Object.values(medals).flat().reduce(
-        (sum: number, medal) => {
-          return sum +
-            (medalXPValues[medal as keyof typeof medalXPValues] || 0);
-        },
-        0,
-      );
-
-      const totalXP = goalsXP + achievementsXP;
-      const calculatedLevel = calculateLevel(totalXP);
-
       setProfile({
         id: profileData.id,
-        xp: totalXP,
-        level: calculatedLevel,
-        medals: medals,
-        phoneNumber: profileData.phone_number || '',
-        countryCode: profileData.country_code || '',
-        email: profileData.email || user.email || '',
+        username: profileData.username,
+        totalXP: profileData.total_xp || 0,
+        level: profileData.level || 1,
+        phoneNumber: profileData.phone_number,
+        countryCode: profileData.country_code,
+        achievements: profileData.achievements || [],
+        xp: profileData.total_xp || 0,
+        medals,
       });
 
-      setGoalsXPBreakdown(breakdown);
-      setAchievementXP(achievementsXP);
+      setAchievementXP(0); // No achievement XP for now
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("Error in fetchProfile:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchProfile();
+  }, [user]);
+
   const updateProfile = async (updates: {
+    username?: string;
     phoneNumber?: string;
     countryCode?: string;
-    email?: string;
   }) => {
     if (!user) throw new Error("User not authenticated");
 
     try {
-      const updateData: any = {
-        updated_at: new Date().toISOString(),
-      };
+      const updateData: any = {};
+
+      if (updates.username !== undefined) {
+        updateData.username = updates.username;
+      }
 
       if (updates.phoneNumber !== undefined) {
         updateData.phone_number = updates.phoneNumber;
       }
+
       if (updates.countryCode !== undefined) {
         updateData.country_code = updates.countryCode;
-      }
-      if (updates.email !== undefined) {
-        updateData.email = updates.email;
       }
 
       const { error } = await supabase
@@ -154,12 +218,19 @@ export function useProfile() {
         .update(updateData)
         .eq("id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating profile:", error);
+        throw error;
+      }
 
       // Update local state
-      setProfile(prev => ({
+      setProfile((prev) => ({
         ...prev,
-        ...updates,
+        ...(updates.username !== undefined && { username: updates.username }),
+        ...(updates.phoneNumber !== undefined &&
+          { phoneNumber: updates.phoneNumber }),
+        ...(updates.countryCode !== undefined &&
+          { countryCode: updates.countryCode }),
       }));
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -168,235 +239,119 @@ export function useProfile() {
   };
 
   const syncProfileXPToGoals = async () => {
-    if (!user) throw new Error("User not authenticated");
+    if (!user) return;
 
     try {
-      // Get total XP from all goals
-      const { data: goalsData, error: goalsError } = await supabase
+      // Get all goals for the user
+      const { data: goals, error: goalsError } = await supabase
         .from("goals")
         .select("xp_earned")
         .eq("user_id", user.id);
 
-      if (goalsError) throw goalsError;
-
-      const goalsXP = goalsData.reduce(
-        (sum, goal) => sum + (goal.xp_earned || 0),
-        0,
-      );
-
-      // Add achievement XP to total
-      const totalXP = goalsXP + achievementXP;
-      const newLevel = calculateLevel(totalXP);
-
-      // Validate the calculated values before database update
-      if (typeof newLevel !== "number" || isNaN(newLevel) || newLevel < 1) {
-        throw new Error(
-          `Invalid level calculated: ${newLevel} for XP: ${totalXP}`,
-        );
+      if (goalsError) {
+        console.error("Error fetching goals for XP sync:", goalsError);
+        return;
       }
 
-      // Update local state immediately
-      setProfile((prev) => ({
-        ...prev,
-        xp: totalXP,
-        level: newLevel,
-      }));
+      // Calculate total XP from all goals
+      const totalXP = goals?.reduce((sum, goal) =>
+        sum + (goal.xp_earned || 0), 0) || 0;
 
-      // Update the profile in the database
-      const { error } = await supabase
+      // Calculate level (every 100 XP = 1 level)
+      const level = Math.floor(totalXP / 100) + 1;
+
+      // Update profile with new totals
+      const { error: updateError } = await supabase
         .from("profiles")
         .update({
-          xp: totalXP,
-          level: newLevel,
-          updated_at: new Date().toISOString(),
+          total_xp: totalXP,
+          level: level,
         })
         .eq("id", user.id);
 
-      if (error) {
-        console.error("Error syncing profile XP to database:", error);
-        // Revert local state on error
-        await fetchProfile();
-        throw error;
-      }
-    } catch (error) {
-      console.error("Error syncing profile XP:", error);
-      throw error;
-    }
-  };
-
-  const addXP = async (amount: number) => {
-    if (!user) throw new Error("User not authenticated");
-
-    try {
-      // Ensure we have valid current values
-      const currentXP = typeof profile.xp === "number" ? profile.xp : 0;
-      const newXP = Math.max(0, currentXP + amount); // Never let XP go below 0
-      const newLevel = calculateLevel(newXP);
-
-      // Validate the calculated values before database update
-      if (typeof newLevel !== "number" || isNaN(newLevel) || newLevel < 1) {
-        throw new Error(
-          `Invalid level calculated: ${newLevel} for XP: ${newXP}`,
-        );
+      if (updateError) {
+        console.error("Error updating profile XP:", updateError);
+        return;
       }
 
-      // Update local state optimistically
+      // Update local state
       setProfile((prev) => ({
         ...prev,
-        xp: newXP,
-        level: newLevel,
+        totalXP,
+        level,
+        xp: totalXP, // Legacy compatibility
       }));
-
-      // Update the profile in the database
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          xp: newXP,
-          level: newLevel,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      if (error) {
-        console.error("Error updating profile XP in database:", error);
-        // Revert local state on error
-        setProfile((prev) => ({
-          ...prev,
-          xp: currentXP,
-          level: calculateLevel(currentXP),
-        }));
-        throw error;
-      }
     } catch (error) {
-      console.error("Error adding XP:", error);
-      throw error;
-    }
-  };
-
-  const checkAndAwardMedals = async (category: string, completions: number) => {
-    if (!user) throw new Error("User not authenticated");
-
-    try {
-      // Only award medals when entire goals are completed, not individual tasks
-      // This function is kept for compatibility but should only be called for goal completion
-      return null;
-    } catch (error) {
-      console.error("Error checking medals:", error);
-      throw error;
+      console.error("Error in syncProfileXPToGoals:", error);
     }
   };
 
   const awardMedalForGoalCompletion = async (category: string) => {
-    if (!user) throw new Error("User not authenticated");
+    if (!user) return;
 
     try {
-      // Get completed goals count for this category
-      const { data: completedGoals, error } = await supabase
-        .from("goals")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("category", category)
-        .not("completed_at", "is", null);
+      const medal = `${category}_completion`;
 
-      if (error) throw error;
-
-      const completedCount = completedGoals.length;
-      let newMedal: MedalType | null = null;
-
-      // Determine the highest medal that should be awarded
-      if (completedCount >= 100) newMedal = "diamond";
-      else if (completedCount >= 50) newMedal = "gold";
-      else if (completedCount >= 10) newMedal = "silver";
-      else if (completedCount >= 1) newMedal = "bronze";
-
-      if (!newMedal) return null;
-
-      const currentMedals =
-        profile.medals[category as keyof typeof profile.medals];
-
-      // Check if we need to award any new medals
-      const medalsToAward: MedalType[] = [];
-      const medalOrder: MedalType[] = ["bronze", "silver", "gold", "diamond"];
-
-      for (const medal of medalOrder) {
-        if (!currentMedals.includes(medal)) {
-          medalsToAward.push(medal);
-        }
-        if (medal === newMedal) break;
-      }
-
-      if (medalsToAward.length === 0) return null;
-
-      const medalXP = {
-        bronze: 10,
-        silver: 100,
-        gold: 1000,
-        diamond: 10000,
-      };
-
-      const totalXP = medalsToAward.reduce(
-        (sum, medal) => sum + medalXP[medal],
-        0,
+      // Check if user already has this medal
+      const existingMedal = profile.achievements.find(
+        (achievement) => achievement.medal === medal,
       );
 
-      const newMedals = {
-        ...profile.medals,
-        [category]: [...currentMedals, ...medalsToAward],
+      if (existingMedal) {
+        return; // Already has this medal
+      }
+
+      const newAchievement = {
+        medal,
+        category,
+        awardedAt: new Date().toISOString(),
       };
 
-      const { error: updateError } = await supabase
+      const updatedAchievements = [...profile.achievements, newAchievement];
+
+      // Update database
+      const { error } = await supabase
         .from("profiles")
         .update({
-          medals: newMedals,
-          updated_at: new Date().toISOString(),
+          achievements: updatedAchievements,
         })
         .eq("id", user.id);
 
-      if (updateError) throw updateError;
+      if (error) {
+        console.error("Error awarding medal:", error);
+        return;
+      }
 
-      // Update achievement XP and total XP when medals are awarded
-      const newAchievementXP = achievementXP + totalXP;
-      const newTotalXP = profile.xp + totalXP;
-      const newLevel = calculateLevel(newTotalXP);
-
+      // Update local state
       setProfile((prev) => ({
         ...prev,
-        medals: newMedals,
-        xp: newTotalXP,
-        level: newLevel,
+        achievements: updatedAchievements,
       }));
 
-      setAchievementXP(newAchievementXP);
-
-      // Update database with new total XP and level
-      await supabase
-        .from("profiles")
-        .update({
-          xp: newTotalXP,
-          level: newLevel,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      return { medals: medalsToAward, xp: totalXP };
+      // Show success message
+      Alert.alert(
+        "Achievement Unlocked! 🏆",
+        `You've earned the ${
+          category.charAt(0).toUpperCase() + category.slice(1)
+        } Completion medal!`,
+        [{ text: "Awesome!" }],
+      );
     } catch (error) {
-      console.error("Error awarding medal:", error);
-      throw error;
+      console.error("Error in awardMedalForGoalCompletion:", error);
     }
   };
 
-  const getXPForNextLevel = (): number => {
-    const nextLevel = profile.level + 1;
-    const xpForNextLevel = Math.pow(nextLevel - 1, 2) * 100;
-    return xpForNextLevel - profile.xp;
-  };
-
   const getLevelProgress = (): number => {
-    const currentLevelXP = Math.pow(profile.level - 1, 2) * 100;
-    const nextLevelXP = Math.pow(profile.level, 2) * 100;
+    const currentLevelXP = (profile.level - 1) * 100;
+    const nextLevelXP = profile.level * 100;
     const levelXP = nextLevelXP - currentLevelXP;
     const earnedXP = profile.xp - currentLevelXP;
     return Math.max(0, Math.min(100, (earnedXP / levelXP) * 100));
+  };
+
+  const getXPForNextLevel = (): number => {
+    const nextLevelXP = profile.level * 100;
+    return Math.max(0, nextLevelXP - profile.xp);
   };
 
   return {
@@ -404,13 +359,12 @@ export function useProfile() {
     loading,
     goalsXPBreakdown,
     achievementXP,
-    addXP,
     updateProfile,
     syncProfileXPToGoals,
-    checkAndAwardMedals,
     awardMedalForGoalCompletion,
-    getXPForNextLevel,
+    refreshProfile: fetchProfile,
+    refetch: fetchProfile, // Legacy compatibility
     getLevelProgress,
-    refetch: fetchProfile,
+    getXPForNextLevel,
   };
 }

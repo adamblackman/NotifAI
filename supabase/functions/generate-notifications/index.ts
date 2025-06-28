@@ -37,8 +37,7 @@ serve(async (req) => {
           notification_window_end,
           notification_days,
           personality,
-          timezone,
-          enabled_channels
+          timezone
         )
       `);
 
@@ -153,53 +152,45 @@ async function processUserNotifications(
 
   // Organize existing times by channel
   (todaysNotifications || []).forEach((n) => {
-    const channel = n.channel || 'push';
+    const channel = n.channel || "push";
     if (!existingTimesByChannel[channel]) {
       existingTimesByChannel[channel] = [];
     }
     existingTimesByChannel[channel].push(new Date(n.scheduled_at));
   });
 
-  // Get enabled channels from user preferences
-  const enabledChannels = preferences.enabled_channels || ['push'];
-
   // Process each goal
   for (const goal of goals) {
     try {
-      // Get goal's notification channels
-      const goalChannels = goal.notification_channels || ['push'];
-      
-      // Only use channels that are enabled both in user preferences and goal settings
-      const activeChannels = goalChannels.filter(channel => 
-        enabledChannels.includes(channel)
-      );
+      // Get goal's notification channels - use directly from goal settings
+      const activeChannels = goal.notification_channels || ["push"];
 
       // Skip if no active channels
       if (activeChannels.length === 0) continue;
 
       // Check if email is enabled but user has no email
-      if (activeChannels.includes('email') && !user.email) {
-        activeChannels.splice(activeChannels.indexOf('email'), 1);
+      if (activeChannels.includes("email") && !user.email) {
+        activeChannels.splice(activeChannels.indexOf("email"), 1);
       }
 
       // Check if whatsapp is enabled but user has no phone
-      if (activeChannels.includes('whatsapp') && !user.phone_number) {
-        activeChannels.splice(activeChannels.indexOf('whatsapp'), 1);
+      if (activeChannels.includes("whatsapp") && !user.phone_number) {
+        activeChannels.splice(activeChannels.indexOf("whatsapp"), 1);
       }
 
       // Skip if no active channels after validation
       if (activeChannels.length === 0) continue;
 
       // Process notifications for each active channel
-      for (const channel of activeChannels) {
+      for (const channel of activeChannels as string[]) {
         const created = await processGoalNotificationForChannel(
           supabaseClient,
           user,
           goal,
           preferences,
-          recentNotifications?.filter(n => n.channel === channel) || [],
+          recentNotifications?.filter((n) => n.channel === channel) || [],
           existingTimesByChannel[channel] || [],
-          channel
+          channel,
         );
 
         if (created) {
@@ -212,7 +203,7 @@ async function processUserNotifications(
             preferences.timezone || "America/Los_Angeles",
             existingTimesByChannel[channel] || [],
           );
-          
+
           if (!existingTimesByChannel[channel]) {
             existingTimesByChannel[channel] = [];
           }
@@ -237,13 +228,13 @@ async function processGoalNotificationForChannel(
   preferences: any,
   recentNotifications: any[],
   existingTimes: Date[],
-  channel: string
+  channel: string,
 ): Promise<boolean> {
   // Check if this goal has received a notification recently on this channel
   const goalNotifications = recentNotifications.filter((n) =>
     n.goal_id === goal.id && n.channel === channel
   );
-  
+
   const lastNotification = goalNotifications.length > 0
     ? new Date(
       Math.max(
@@ -256,7 +247,7 @@ async function processGoalNotificationForChannel(
   const shouldSendNotification = await shouldSendGoalNotification(
     goal,
     lastNotification,
-    channel
+    channel,
   );
 
   if (!shouldSendNotification) {
@@ -268,7 +259,7 @@ async function processGoalNotificationForChannel(
     goal,
     preferences,
     goalNotifications,
-    channel
+    channel,
   );
 
   if (!notificationData) {
@@ -294,7 +285,7 @@ async function processGoalNotificationForChannel(
       scheduled_at: scheduledAt.toISOString(),
       status: "pending",
       channel: channel,
-      notification_category: goal.category
+      notification_category: goal.category,
     });
 
   if (insertError) {
@@ -311,7 +302,7 @@ async function processGoalNotificationForChannel(
 async function shouldSendGoalNotification(
   goal: any,
   lastNotification: Date | null,
-  channel: string
+  channel: string,
 ): Promise<boolean> {
   const now = new Date();
 
@@ -322,10 +313,10 @@ async function shouldSendGoalNotification(
 
   // Different frequency based on channel type
   let minDaysBetweenNotifications = 1; // Default for push
-  
-  if (channel === 'email') {
+
+  if (channel === "email") {
     minDaysBetweenNotifications = 2; // Less frequent for email
-  } else if (channel === 'whatsapp') {
+  } else if (channel === "whatsapp") {
     minDaysBetweenNotifications = 3; // Even less frequent for WhatsApp
   }
 
@@ -379,12 +370,14 @@ async function generateNotificationWithAI(
   goal: any,
   preferences: any,
   recentNotifications: any[],
-  channel: string
+  channel: string,
 ): Promise<{ message: string } | null> {
   try {
     // Adjust message length based on channel
-    const maxLength = channel === 'push' ? 100 : (channel === 'whatsapp' ? 160 : 500);
-    
+    const maxLength = channel === "push"
+      ? 100
+      : (channel === "whatsapp" ? 160 : 500);
+
     const openAIResponse = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {

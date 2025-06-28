@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, CreditCard as Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { 
   useSharedValue, 

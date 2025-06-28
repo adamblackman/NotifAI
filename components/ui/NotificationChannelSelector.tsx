@@ -48,7 +48,7 @@ export function NotificationChannelSelector({
     if (config.icon === 'lucide') {
       return (
         <Bell 
-          size={20} 
+          size={24} 
           color={isSelected ? Colors.white : config.color} 
         />
       );
@@ -77,23 +77,24 @@ export function NotificationChannelSelector({
           const isSelected = selectedChannels.includes(channel);
           
           return (
-            <TouchableOpacity
-              key={channel}
-              style={[
-                styles.channelButton,
-                isSelected && styles.channelButtonSelected,
-                { borderColor: isSelected ? config.color : Colors.gray300 }
-              ]}
-              onPress={() => toggleChannel(channel)}
-            >
-              {renderIcon(channel, config, isSelected)}
+            <View key={channel} style={styles.channelItem}>
+              <TouchableOpacity
+                style={[
+                  styles.channelButton,
+                  isSelected && styles.channelButtonSelected,
+                  { backgroundColor: isSelected ? config.color : Colors.white }
+                ]}
+                onPress={() => toggleChannel(channel)}
+              >
+                {renderIcon(channel, config, isSelected)}
+              </TouchableOpacity>
               <Text style={[
                 styles.channelLabel,
-                isSelected && styles.channelLabelSelected
+                isSelected && { color: config.color }
               ]}>
                 {config.label}
               </Text>
-            </TouchableOpacity>
+            </View>
           );
         })}
       </View>
@@ -113,34 +114,34 @@ const styles = StyleSheet.create({
   },
   channelsContainer: {
     flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  channelItem: {
+    alignItems: 'center',
   },
   channelButton: {
-    flexDirection: 'row',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
     borderWidth: 2,
-    backgroundColor: Colors.white,
-    gap: 6,
-    minWidth: 80,
+    borderColor: Colors.gray200,
+    marginBottom: 4,
   },
   channelButtonSelected: {
-    backgroundColor: Colors.primary,
+    borderColor: 'transparent',
   },
   channelLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.gray700,
-  },
-  channelLabelSelected: {
-    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.gray600,
+    marginTop: 4,
   },
   brandIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   brandIconSelected: {
     tintColor: Colors.white,

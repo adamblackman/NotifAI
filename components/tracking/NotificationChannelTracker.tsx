@@ -17,20 +17,37 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
   const { profile, updateProfile } = useProfile();
 
   const handleChannelsChange = async (channels: string[]) => {
-    // Check if WhatsApp is selected but no phone number is stored
-    if (channels.includes('whatsapp') && !profile.phoneNumber) {
+    // Check if WhatsApp is being added
+    if (
+      channels.includes('whatsapp') && 
+      !goal.notificationChannels?.includes('whatsapp') && 
+      !profile.phoneNumber
+    ) {
       setShowPhoneModal(true);
       return;
     }
 
-    // Check if email is selected but no email is stored
-    if (channels.includes('email') && !profile.email) {
+    // Check if email is being added
+    if (
+      channels.includes('email') && 
+      !goal.notificationChannels?.includes('email') && 
+      !profile.email
+    ) {
       Alert.alert(
         'Email Required',
         'Please add your email address in Settings to receive email notifications.',
         [{ text: 'OK' }]
       );
-      return;
+      
+      // Remove email from channels if user doesn't have an email
+      const updatedChannels = channels.filter(c => c !== 'email');
+      
+      // If channels are the same as before, don't update
+      if (JSON.stringify(updatedChannels) === JSON.stringify(goal.notificationChannels)) {
+        return;
+      }
+      
+      channels = updatedChannels;
     }
 
     try {
@@ -68,11 +85,6 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Notification Settings</Text>
-      <Text style={styles.description}>
-        Choose how you want to be reminded about this goal
-      </Text>
-      
       <NotificationChannelSelector
         selectedChannels={goal.notificationChannels || ['push']}
         onChannelsChange={handleChannelsChange}
@@ -90,29 +102,6 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 16,
     marginVertical: 8,
-    shadowColor: Colors.black,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.gray800,
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 14,
-    color: Colors.gray600,
-    marginBottom: 16,
-    lineHeight: 20,
   },
 });

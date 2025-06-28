@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { Repeat, Flame, Calendar, ChevronDown, CreditCard as Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Repeat, Flame, Calendar, ChevronDown, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 

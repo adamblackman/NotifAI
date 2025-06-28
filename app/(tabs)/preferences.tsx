@@ -3,13 +3,13 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Ale
 import Slider from '@react-native-community/slider';
 import { Colors } from '@/constants/Colors';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useProfile } from '@/hooks/useProfile';
 import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
 import { DeleteAccountModal } from '@/components/ui/DeleteAccountModal';
 import { Input } from '@/components/ui/Input';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -21,7 +21,8 @@ const personalityOptions = [
 ];
 
 export default function PreferencesScreen() {
-  const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays, updateContactInfo, updateEnabledChannels } = usePreferences();
+  const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays } = usePreferences();
+  const { profile, updateProfile } = useProfile();
   const { signOut } = useAuth();
   const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
   const [startTime, setStartTime] = useState(preferences.notificationWindow.start);
@@ -29,9 +30,8 @@ export default function PreferencesScreen() {
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [email, setEmail] = useState(preferences.email || '');
-  const [phone, setPhone] = useState(preferences.phone || '');
-  const [enabledChannels, setEnabledChannels] = useState(preferences.enabledChannels || ['push']);
+  const [email, setEmail] = useState(profile.email || '');
+  const [phoneNumber, setPhoneNumber] = useState(profile.phoneNumber || '');
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -61,14 +61,17 @@ export default function PreferencesScreen() {
     setDropdownOpen(false);
   };
 
-  const handleContactInfoSave = () => {
-    updateContactInfo(email, phone);
-    Alert.alert('Success', 'Contact information updated successfully!');
-  };
-
-  const handleChannelsUpdate = (channels: string[]) => {
-    setEnabledChannels(channels);
-    updateEnabledChannels(channels);
+  const handleContactInfoSave = async () => {
+    try {
+      await updateProfile({
+        email,
+        phoneNumber,
+      });
+      Alert.alert('Success', 'Contact information updated successfully!');
+    } catch (error) {
+      console.error('Error updating contact info:', error);
+      Alert.alert('Error', 'Failed to update contact information. Please try again.');
+    }
   };
 
   const handleLogout = () => {
@@ -151,8 +154,8 @@ export default function PreferencesScreen() {
           
           <Input
             placeholder="Phone number (e.g., +1234567890)"
-            value={phone}
-            onChangeText={setPhone}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
             style={styles.input}
           />
@@ -160,18 +163,6 @@ export default function PreferencesScreen() {
           <TouchableOpacity style={styles.saveButton} onPress={handleContactInfoSave}>
             <Text style={styles.saveButtonText}>Save Contact Info</Text>
           </TouchableOpacity>
-        </Card>
-
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Channels</Text>
-          <Text style={styles.sectionDescription}>
-            Choose how you want to receive notifications
-          </Text>
-          
-          <NotificationChannelSelector
-            selectedChannels={enabledChannels}
-            onChannelsChange={handleChannelsUpdate}
-          />
         </Card>
         
         <Card style={styles.section}>

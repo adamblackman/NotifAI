@@ -35,7 +35,10 @@ serve(async (req) => {
           notification_window_end,
           notification_days,
           personality,
-          timezone
+          timezone,
+          enabled_channels,
+          email,
+          phone
         )
       `);
 
@@ -92,7 +95,7 @@ async function processUserNotifications(
     return 0;
   }
 
-  // Get user's active goals
+  // Get user's active goals with notification channels
   const { data: goals, error: goalsError } = await supabaseClient
     .from("goals")
     .select("*")
@@ -149,6 +152,21 @@ async function processUserNotifications(
   // Process each goal
   for (const goal of goals) {
     try {
+      // Get goal's notification channels (default to push if not set)
+      const goalChannels = goal.data?.notificationChannels || ['push'];
+      
+      // Get user's enabled channels
+      const userEnabledChannels = preferences.enabled_channels || ['push'];
+      
+      // Find intersection of goal channels and user enabled channels
+      const activeChannels = goalChannels.filter(channel => 
+        userEnabledChannels.includes(channel)
+      );
+
+      if (activeChannels.length === 0) {
+        continue; // Skip if no active channels
+      }
+
       const created = await processGoalNotification(
         supabaseClient,
         user,
@@ -156,6 +174,7 @@ async function processUserNotifications(
         preferences,
         recentNotifications || [],
         existingTimes,
+        activeChannels,
       );
       if (created) {
         notificationsCreated++;
@@ -187,6 +206,7 @@ async function processGoalNotification(
   preferences: any,
   recentNotifications: any[],
   existingTimes: Date[],
+  activeChannels: string[],
 ): Promise<boolean> {
   // Check if this goal has received a notification recently
   const goalNotifications = recentNotifications.filter((n) =>
@@ -230,20 +250,24 @@ async function processGoalNotification(
     existingTimes,
   );
 
-  // Insert the scheduled notification
+  // Create notifications for each active channel
+  const notifications = activeChannels.map(channel => ({
+    user_id: user.id,
+    goal_id: goal.id,
+    message: notificationData.message,
+    scheduled_at: scheduledAt.toISOString(),
+    status: "pending",
+    channel: channel,
+  }));
+
+  // Insert the scheduled notifications
   const { error: insertError } = await supabaseClient
     .from("scheduled_notifications")
-    .insert({
-      user_id: user.id,
-      goal_id: goal.id,
-      message: notificationData.message,
-      scheduled_at: scheduledAt.toISOString(),
-      status: "pending",
-    });
+    .insert(notifications);
 
   if (insertError) {
     console.error(
-      `Error inserting notification for goal ${goal.id}:`,
+      `Error inserting notifications for goal ${goal.id}:`,
       insertError,
     );
     return false;

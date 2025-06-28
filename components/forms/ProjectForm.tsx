@@ -4,6 +4,7 @@ import { Plus, X, GripVertical, Calendar, ArrowLeft } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 import { Colors } from '@/constants/Colors';
 import { ProjectGoal, Task } from '@/types/Goal';
 
@@ -19,6 +20,7 @@ export function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [notificationChannels, setNotificationChannels] = useState<string[]>(['push']);
 
   const addTask = () => {
     if (newTaskTitle.trim()) {
@@ -66,6 +68,7 @@ export function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
         tasks,
         progress: 0,
         category: 'project',
+        notificationChannels,
       });
     }
   };
@@ -149,6 +152,11 @@ export function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
       </View>
       
       {tasks.map((task, index) => renderTask(task, index))}
+
+      <NotificationChannelSelector
+        selectedChannels={notificationChannels}
+        onChannelsChange={setNotificationChannels}
+      />
       
       <View style={styles.buttonContainer}>
         <Button

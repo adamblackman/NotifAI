@@ -4,13 +4,16 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function usePreferences() {
-  const [preferences, setPreferences] = useState<Preferences>({
+  const [preferences, setPreferences] = useState<Preferences & { email?: string; phone?: string; enabledChannels?: string[] }>({
     notificationWindow: {
       start: 9, // 9 AM
       end: 21, // 9 PM
     },
     notificationDays: new Array(7).fill(true), // All days selected by default
     personality: 'friendly',
+    email: '',
+    phone: '',
+    enabledChannels: ['push'],
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -40,6 +43,9 @@ export function usePreferences() {
         },
         notificationDays: data.notification_days,
         personality: data.personality,
+        email: data.email || '',
+        phone: data.phone || '',
+        enabledChannels: data.enabled_channels || ['push'],
       });
     } catch (error) {
       console.error('Error fetching preferences:', error);
@@ -121,12 +127,64 @@ export function usePreferences() {
     }
   };
 
+  const updateContactInfo = async (email: string, phone: string) => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const { error } = await supabase
+        .from('preferences')
+        .update({
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setPreferences(prev => ({
+        ...prev,
+        email: email.trim(),
+        phone: phone.trim(),
+      }));
+    } catch (error) {
+      console.error('Error updating contact info:', error);
+      throw error;
+    }
+  };
+
+  const updateEnabledChannels = async (channels: string[]) => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const { error } = await supabase
+        .from('preferences')
+        .update({
+          enabled_channels: channels,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setPreferences(prev => ({
+        ...prev,
+        enabledChannels: channels,
+      }));
+    } catch (error) {
+      console.error('Error updating enabled channels:', error);
+      throw error;
+    }
+  };
+
   return {
     preferences,
     loading,
     updateNotificationWindow,
     updateNotificationDays,
     updatePersonality,
+    updateContactInfo,
+    updateEnabledChannels,
     refetch: fetchPreferences,
   };
 }

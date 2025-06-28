@@ -38,6 +38,7 @@ serve(async (req) => {
         goal_id,
         message,
         scheduled_at,
+        channel,
         goals(title, category)
       `)
         .eq("status", "pending")
@@ -58,27 +59,55 @@ serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    // Process each notification
-    for (const notification of pendingNotifications) {
-      try {
-        const success = await sendNotification(supabaseClient, notification);
-        if (success) {
-          sentCount++;
-        } else {
-          failedCount++;
-        }
-      } catch (error) {
-        console.error(`Error sending notification ${notification.id}:`, error);
-        failedCount++;
+    // Group notifications by channel type
+    const notificationsByChannel = pendingNotifications.reduce((acc, notification) => {
+      const channel = notification.channel || 'push';
+      if (!acc[channel]) {
+        acc[channel] = [];
+      }
+      acc[channel].push(notification);
+      return acc;
+    }, {} as Record<string, any[]>);
 
-        // Mark as failed in database
-        await supabaseClient
-          .from("scheduled_notifications")
-          .update({
-            status: "failed",
-            sent_at: new Date().toISOString(),
-          })
-          .eq("id", notification.id);
+    // Process each channel type
+    for (const [channel, notifications] of Object.entries(notificationsByChannel)) {
+      for (const notification of notifications) {
+        try {
+          let success = false;
+          
+          switch (channel) {
+            case 'push':
+              success = await sendPushNotification(supabaseClient, notification);
+              break;
+            case 'email':
+              success = await sendEmailNotification(supabaseClient, notification);
+              break;
+            case 'whatsapp':
+              success = await sendWhatsAppNotification(supabaseClient, notification);
+              break;
+            default:
+              console.warn(`Unknown notification channel: ${channel}`);
+              success = false;
+          }
+
+          if (success) {
+            sentCount++;
+          } else {
+            failedCount++;
+          }
+        } catch (error) {
+          console.error(`Error sending notification ${notification.id}:`, error);
+          failedCount++;
+
+          // Mark as failed in database
+          await supabaseClient
+            .from("scheduled_notifications")
+            .update({
+              status: "failed",
+              sent_at: new Date().toISOString(),
+            })
+            .eq("id", notification.id);
+        }
       }
     }
 
@@ -105,7 +134,7 @@ serve(async (req) => {
   }
 });
 
-async function sendNotification(
+async function sendPushNotification(
   supabaseClient: any,
   notification: any,
 ): Promise<boolean> {
@@ -209,7 +238,116 @@ async function sendNotification(
       return false;
     }
   } catch (error) {
-    console.error(`Error in sendNotification for ${notification.id}:`, error);
+    console.error(`Error in sendPushNotification for ${notification.id}:`, error);
+    return false;
+  }
+}
+
+async function sendEmailNotification(
+  supabaseClient: any,
+  notification: any,
+): Promise<boolean> {
+  try {
+    // Call the email notification edge function
+    const emailResponse = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email-notification`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          goalId: notification.goal_id,
+          userId: notification.user_id,
+          message: notification.message,
+          subject: `${notification.goals?.title || "Goal"} Reminder`,
+        }),
+      },
+    );
+
+    if (emailResponse.ok) {
+      // Mark as sent
+      await supabaseClient
+        .from("scheduled_notifications")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", notification.id);
+
+      return true;
+    } else {
+      const errorText = await emailResponse.text();
+      console.error(`Email send failed for notification ${notification.id}:`, errorText);
+
+      // Mark as failed
+      await supabaseClient
+        .from("scheduled_notifications")
+        .update({
+          status: "failed",
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", notification.id);
+
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error in sendEmailNotification for ${notification.id}:`, error);
+    return false;
+  }
+}
+
+async function sendWhatsAppNotification(
+  supabaseClient: any,
+  notification: any,
+): Promise<boolean> {
+  try {
+    // Call the WhatsApp notification edge function
+    const whatsappResponse = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp-notification`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          goalId: notification.goal_id,
+          userId: notification.user_id,
+          message: notification.message,
+        }),
+      },
+    );
+
+    if (whatsappResponse.ok) {
+      // Mark as sent
+      await supabaseClient
+        .from("scheduled_notifications")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", notification.id);
+
+      return true;
+    } else {
+      const errorText = await whatsappResponse.text();
+      console.error(`WhatsApp send failed for notification ${notification.id}:`, errorText);
+
+      // Mark as failed
+      await supabaseClient
+        .from("scheduled_notifications")
+        .update({
+          status: "failed",
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", notification.id);
+
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error in sendWhatsAppNotification for ${notification.id}:`, error);
     return false;
   }
 }

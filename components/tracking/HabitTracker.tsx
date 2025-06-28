@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { Repeat, Flame, Calendar, ChevronDown, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Repeat, Flame, Calendar, ChevronDown, CreditCard as Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -321,11 +321,9 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
       });
       
       // Check if goal should be completed and award medals
-      if (updatedGoal) {
-        const wasCompleted = await checkAndCompleteGoal(updatedGoal);
-        if (wasCompleted) {
-          await awardMedalForGoalCompletion('habit');
-        }
+      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+      if (wasCompleted) {
+        await awardMedalForGoalCompletion('habit');
       }
       
       // Sync profile XP to match the sum of all goal XP
@@ -560,7 +558,7 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
                   {editMode[goal.id] ? (
                     <Check size={18} color={Colors.primary} />
                   ) : (
-                    <Pencil size={18} color={Colors.gray600} />
+                    <Edit3 size={18} color={Colors.gray600} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -709,7 +707,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 24,
     position: 'relative',
   },
   titleContainer: {

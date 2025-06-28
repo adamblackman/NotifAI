@@ -131,7 +131,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (!error && data.user) {
         // Create initial profile and preferences
-        await createInitialUserData(data.user.id, email);
+        await createInitialUserData(data.user.id);
       }
 
       return { data, error };
@@ -172,15 +172,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const createInitialUserData = async (userId: string, email: string) => {
+  const createInitialUserData = async (userId: string) => {
     try {
-      // Create profile with email from auth
+      // Create profile
       await supabase.from('profiles').insert({
         id: userId,
         xp: 0,
         level: 1,
         medals: { habit: [], project: [], learn: [], save: [] },
-        email: email, // Store email from auth
       });
 
       // Create preferences
@@ -220,4 +219,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+} 

@@ -10,7 +10,7 @@ export interface BaseGoal {
   completedAt?: Date;
   xpEarned: number;
   order?: number;
-  notificationChannels?: string[]; // Array of notification channels (push, whatsapp)
+  notificationChannels?: string[]; // New field for notification channels
 }
 
 export interface HabitGoal extends BaseGoal {
@@ -88,4 +88,7 @@ export interface Preferences {
   };
   notificationDays: boolean[]; // 7 days, true = active day
   personality: "serious" | "friendly" | "motivating" | "funny";
+  email?: string; // New field for email notifications
+  phone?: string; // New field for WhatsApp notifications
+  enabledChannels?: string[]; // New field for enabled notification channels
 }

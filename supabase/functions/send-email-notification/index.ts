@@ -7,33 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Function to refresh OAuth2 access token
-async function refreshAccessToken() {
-  const clientId = Deno.env.get("GMAIL_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET") ?? "";
-  const refreshToken = Deno.env.get("GMAIL_REFRESH_TOKEN") ?? "";
-
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to refresh access token");
-  }
-
-  const data = await response.json();
-  return data.access_token;
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -81,11 +54,8 @@ serve(async (req) => {
       );
     }
 
-    // Get fresh access token
-    const accessToken = await refreshAccessToken();
-
-    // Create email message in RFC 2822 format
-    const emailContent = `To: ${profile.email}
+    // Create MIME message
+    const mimeMessage = `To: ${profile.email}
 Subject: ${subject || "Your Goal Update"}
 Content-Type: text/plain; charset=UTF-8
 
@@ -94,22 +64,24 @@ ${message}
 Best regards,
 Your NotifAI Assistant`;
 
-    // Base64url encode the message
+    // Base64url encode the MIME message
     const encoder = new TextEncoder();
-    const data = encoder.encode(emailContent);
+    const data = encoder.encode(mimeMessage);
     const base64url = btoa(String.fromCharCode(...data))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
 
-    // Send email via Gmail API
+    // Send email via Pica Gmail API
     const emailResponse = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      "https://api.picaos.com/v1/passthrough/users/me/messages/send",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          "x-pica-secret": Deno.env.get("PICA_SECRET_KEY") ?? "",
+          "x-pica-connection-key": Deno.env.get("PICA_GMAIL_CONNECTION_KEY") ?? "",
+          "x-pica-action-id": "conn_mod_def::F_JeJ_A_TKg::cc2kvVQQTiiIiLEDauy6zQ",
         },
         body: JSON.stringify({
           raw: base64url,

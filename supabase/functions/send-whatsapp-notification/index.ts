@@ -56,37 +56,32 @@ serve(async (req) => {
 
     // Format phone number for WhatsApp
     const toNumber = `whatsapp:${profile.phone_number}`;
-    const fromNumber = `whatsapp:${
-      Deno.env.get("TWILIO_WHATSAPP_NUMBER") ?? ""
-    }`;
+    const fromNumber = `whatsapp:${Deno.env.get("TWILIO_WHATSAPP_NUMBER") ?? ""}`;
 
-    // Get Twilio credentials
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+    // Prepare form data for Twilio
+    const formData = new URLSearchParams();
+    formData.append("To", toNumber);
+    formData.append("From", fromNumber);
+    formData.append("Body", message);
 
-    // Send WhatsApp message using Template (required for Business API)
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    // Send WhatsApp message via Pica Twilio API
+    const whatsappResponse = await fetch(
+      `https://api.picaos.com/v1/passthrough/Accounts/${Deno.env.get("TWILIO_ACCOUNT_SID")}/Messages.json`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Basic ${btoa(`${accountSid}:${authToken}`)}`,
           "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+          "x-pica-secret": Deno.env.get("PICA_SECRET_KEY") ?? "",
+          "x-pica-connection-key": Deno.env.get("PICA_TWILIO_CONNECTION_KEY") ?? "",
+          "x-pica-action-id": "conn_mod_def::GC7N3zbeE28::A5b41eniS62szBc_-AiXBA",
         },
-        body: new URLSearchParams({
-          To: toNumber,
-          From: fromNumber,
-          // Use WhatsApp Message Template - replace with your actual ContentSid after template approval
-          ContentSid: "HX8599450e2cb524eb020b50d8157d685c", // Get this from Twilio Console after template approval
-          ContentVariables: JSON.stringify({
-            "1": message, // This will be inserted into {{1}} in your template
-          }),
-        }),
+        body: formData.toString(),
       },
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!whatsappResponse.ok) {
+      const errorText = await whatsappResponse.text();
       console.error("WhatsApp send failed:", errorText);
       return new Response(
         JSON.stringify({ error: "Failed to send WhatsApp message" }),
@@ -97,7 +92,7 @@ serve(async (req) => {
       );
     }
 
-    const whatsappResult = await response.json();
+    const whatsappResult = await whatsappResponse.json();
 
     return new Response(
       JSON.stringify({

@@ -16,6 +16,12 @@ const channelConfig = {
     label: 'Push',
     color: Colors.primary,
   },
+  email: {
+    icon: 'image',
+    label: 'Gmail',
+    color: '#EA4335',
+    imageSource: require('@/assets/images/gmail.png'),
+  },
   whatsapp: {
     icon: 'image',
     label: 'WhatsApp',
@@ -27,7 +33,7 @@ const channelConfig = {
 export function NotificationChannelSelector({ 
   selectedChannels, 
   onChannelsChange,
-  availableChannels = ['push', 'whatsapp'],
+  availableChannels = ['push', 'email', 'whatsapp'],
   showTitle = true
 }: NotificationChannelSelectorProps) {
   const toggleChannel = (channel: string) => {
@@ -42,7 +48,7 @@ export function NotificationChannelSelector({
     if (config.icon === 'lucide') {
       return (
         <Bell 
-          size={24} 
+          size={20} 
           color={isSelected ? Colors.white : config.color} 
         />
       );
@@ -52,7 +58,7 @@ export function NotificationChannelSelector({
           source={config.imageSource}
           style={[
             styles.brandIcon,
-            { tintColor: isSelected ? Colors.white : undefined }
+            isSelected && styles.brandIconSelected
           ]}
           resizeMode="contain"
         />
@@ -71,24 +77,23 @@ export function NotificationChannelSelector({
           const isSelected = selectedChannels.includes(channel);
           
           return (
-            <View key={channel} style={styles.channelItem}>
-              <TouchableOpacity
-                style={[
-                  styles.channelButton,
-                  isSelected && styles.channelButtonSelected,
-                  { backgroundColor: isSelected ? config.color : Colors.white }
-                ]}
-                onPress={() => toggleChannel(channel)}
-              >
-                {renderIcon(channel, config, isSelected)}
-              </TouchableOpacity>
+            <TouchableOpacity
+              key={channel}
+              style={[
+                styles.channelButton,
+                isSelected && styles.channelButtonSelected,
+                { borderColor: isSelected ? config.color : Colors.gray300 }
+              ]}
+              onPress={() => toggleChannel(channel)}
+            >
+              {renderIcon(channel, config, isSelected)}
               <Text style={[
                 styles.channelLabel,
-                isSelected && { color: config.color }
+                isSelected && styles.channelLabelSelected
               ]}>
                 {config.label}
               </Text>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -108,33 +113,36 @@ const styles = StyleSheet.create({
   },
   channelsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  channelItem: {
-    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   channelButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: Colors.gray200,
-    marginBottom: 4,
+    backgroundColor: Colors.white,
+    gap: 6,
+    minWidth: 80,
   },
   channelButtonSelected: {
-    borderColor: 'transparent',
+    backgroundColor: Colors.primary,
   },
   channelLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.gray600,
-    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.gray700,
+  },
+  channelLabelSelected: {
+    color: Colors.white,
   },
   brandIcon: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
+  },
+  brandIconSelected: {
+    tintColor: Colors.white,
   },
 });

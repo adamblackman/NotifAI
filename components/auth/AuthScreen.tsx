@@ -107,7 +107,7 @@ export function AuthScreen() {
           resizeMode="contain"
         />
         <Text style={styles.subtitle}>
-          Your AI-powered buddy to remind you about anything you need, right when you need it.
+          Your AI-powered buddy to remind you anything you need right when you need it
         </Text>
         
         <Card style={styles.card}>
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   guestText: {
-    bottom: 140,
+    bottom: 170,
     fontSize: 12,
     color: Colors.gray500,
     textAlign: 'center',

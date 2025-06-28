@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Plus, X, GripVertical, ArrowLeft } from 'lucide-react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelFormSelector } from '@/components/ui/NotificationChannelFormSelector';
+import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 import { Colors } from '@/constants/Colors';
 import { LearnGoal, CurriculumItem } from '@/types/Goal';
 
@@ -123,7 +123,7 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
       
       {curriculumItems.map((item, index) => renderItem(item, index))}
 
-      <NotificationChannelFormSelector
+      <NotificationChannelSelector
         selectedChannels={notificationChannels}
         onChannelsChange={setNotificationChannels}
       />

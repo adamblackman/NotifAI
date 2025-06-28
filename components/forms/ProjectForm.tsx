@@ -4,7 +4,7 @@ import { Plus, X, GripVertical, Calendar, ArrowLeft } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
+import { NotificationChannelFormSelector } from '@/components/ui/NotificationChannelFormSelector';
 import { Colors } from '@/constants/Colors';
 import { ProjectGoal, Task } from '@/types/Goal';
 
@@ -153,7 +153,7 @@ export function ProjectForm({ onSubmit, onCancel }: ProjectFormProps) {
       
       {tasks.map((task, index) => renderTask(task, index))}
 
-      <NotificationChannelSelector
+      <NotificationChannelFormSelector
         selectedChannels={notificationChannels}
         onChannelsChange={setNotificationChannels}
       />

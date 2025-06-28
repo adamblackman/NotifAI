@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
+import { NotificationChannelFormSelector } from '@/components/ui/NotificationChannelFormSelector';
 import { Colors } from '@/constants/Colors';
 import { HabitGoal } from '@/types/Goal';
 
@@ -101,7 +101,7 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
         ))}
       </View>
 
-      <NotificationChannelSelector
+      <NotificationChannelFormSelector
         selectedChannels={notificationChannels}
         onChannelsChange={setNotificationChannels}
       />

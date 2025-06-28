@@ -4,7 +4,7 @@ import { Plus, X, Calendar, ArrowLeft } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
+import { NotificationChannelFormSelector } from '@/components/ui/NotificationChannelFormSelector';
 import { Colors } from '@/constants/Colors';
 import { SaveGoal } from '@/types/Goal';
 
@@ -125,7 +125,7 @@ export function SaveForm({ onSubmit, onCancel }: SaveFormProps) {
         </View>
       ))}
 
-      <NotificationChannelSelector
+      <NotificationChannelFormSelector
         selectedChannels={notificationChannels}
         onChannelsChange={setNotificationChannels}
       />

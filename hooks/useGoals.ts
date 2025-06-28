@@ -117,6 +117,9 @@ export function useGoals() {
         dbUpdates.xp_earned = updates.xpEarned;
       }
       if (updates.order !== undefined) dbUpdates.order = updates.order;
+      if (updates.notificationChannels !== undefined) {
+        dbUpdates.notification_channels = updates.notificationChannels;
+      }
 
       const existingData = currentGoal.data || {};
       const newData = extractGoalData(updates);

@@ -58,7 +58,7 @@ export function NotificationChannelSelector({
           source={config.imageSource}
           style={[
             styles.brandIcon,
-            isSelected && styles.brandIconSelected
+            { tintColor: isSelected ? Colors.white : undefined }
           ]}
           resizeMode="contain"
         />
@@ -142,8 +142,5 @@ const styles = StyleSheet.create({
   brandIcon: {
     width: 24,
     height: 24,
-  },
-  brandIconSelected: {
-    tintColor: Colors.white,
   },
 });

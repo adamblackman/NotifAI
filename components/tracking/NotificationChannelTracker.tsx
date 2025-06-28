@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
@@ -13,14 +13,22 @@ interface NotificationChannelTrackerProps {
 
 export function NotificationChannelTracker({ goal }: NotificationChannelTrackerProps) {
   const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState(goal.notificationChannels || ['push']);
   const { updateGoal } = useGoals();
   const { profile, updateProfile } = useProfile();
 
+  useEffect(() => {
+    setSelectedChannels(goal.notificationChannels || ['push']);
+  }, [goal.notificationChannels]);
+
   const handleChannelsChange = async (channels: string[]) => {
+    const originalChannels = [...selectedChannels];
+    setSelectedChannels(channels);
+
     // Check if WhatsApp is being added
     if (
-      channels.includes('whatsapp') && 
-      !goal.notificationChannels?.includes('whatsapp') && 
+      channels.includes('whatsapp') &&
+      !originalChannels.includes('whatsapp') &&
       !profile.phoneNumber
     ) {
       setShowPhoneModal(true);
@@ -29,8 +37,8 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
 
     // Check if email is being added
     if (
-      channels.includes('email') && 
-      !goal.notificationChannels?.includes('email') && 
+      channels.includes('email') &&
+      !originalChannels.includes('email') &&
       !profile.email
     ) {
       Alert.alert(
@@ -43,7 +51,7 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
       const updatedChannels = channels.filter(c => c !== 'email');
       
       // If channels are the same as before, don't update
-      if (JSON.stringify(updatedChannels) === JSON.stringify(goal.notificationChannels)) {
+      if (JSON.stringify(updatedChannels) === JSON.stringify(originalChannels)) {
         return;
       }
       
@@ -55,6 +63,7 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
         notificationChannels: channels,
       });
     } catch (error) {
+      setSelectedChannels(originalChannels);
       console.error('Error updating notification channels:', error);
       Alert.alert('Error', 'Failed to update notification channels');
     }
@@ -69,12 +78,11 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
       });
 
       // Now update the goal with WhatsApp channel
-      const currentChannels = goal.notificationChannels || ['push'];
-      if (!currentChannels.includes('whatsapp')) {
-        await updateGoal(goal.id, {
-          notificationChannels: [...currentChannels, 'whatsapp'],
-        });
-      }
+      const newChannels = [...selectedChannels, 'whatsapp'];
+      setSelectedChannels(newChannels);
+      await updateGoal(goal.id, {
+        notificationChannels: newChannels,
+      });
 
       Alert.alert('Success', 'Phone number saved and WhatsApp notifications enabled!');
     } catch (error) {
@@ -86,7 +94,8 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
   return (
     <View style={styles.container}>
       <NotificationChannelSelector
-        selectedChannels={goal.notificationChannels || ['push']}
+        key={JSON.stringify(selectedChannels)}
+        selectedChannels={selectedChannels}
         onChannelsChange={handleChannelsChange}
         showTitle={false}
       />

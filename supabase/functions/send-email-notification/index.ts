@@ -37,14 +37,14 @@ serve(async (req) => {
       },
     );
 
-    // Get user's email from preferences
-    const { data: preferences, error: prefError } = await supabaseClient
-      .from("preferences")
+    // Get user's email from profiles
+    const { data: profile, error: profileError } = await supabaseClient
+      .from("profiles")
       .select("email")
-      .eq("user_id", userId)
+      .eq("id", userId)
       .single();
 
-    if (prefError || !preferences?.email) {
+    if (profileError || !profile?.email) {
       return new Response(
         JSON.stringify({ error: "User email not found" }),
         {
@@ -55,7 +55,7 @@ serve(async (req) => {
     }
 
     // Create MIME message
-    const mimeMessage = `To: ${preferences.email}
+    const mimeMessage = `To: ${profile.email}
 Subject: ${subject || "Your Goal Update"}
 Content-Type: text/plain; charset=UTF-8
 

@@ -15,6 +15,7 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { SaveGoal, Goal } from '@/types/Goal';
+import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface SaveTrackerProps {
   goals: SaveGoal[];
@@ -754,6 +755,9 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                 </TouchableOpacity>
               </View>
 
+              {/* Notification Channel Tracker */}
+              <NotificationChannelTracker goal={goal} />
+
               <View style={styles.progressSection}>
                 <View style={styles.amountHeader}>
                   <Text style={styles.currentAmount}>
@@ -894,8 +898,6 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   </TouchableOpacity>
                 </View>
               </View>
-
-
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>

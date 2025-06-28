@@ -11,7 +11,11 @@ const calculateLevel = (xp: number): number => {
 };
 
 export function useProfile() {
-  const [profile, setProfile] = useState<UserProfile>({
+  const [profile, setProfile] = useState<UserProfile & { 
+    phoneNumber?: string; 
+    countryCode?: string; 
+    email?: string; 
+  }>({
     id: "1",
     xp: 0,
     level: 1,
@@ -21,6 +25,9 @@ export function useProfile() {
       learn: [],
       save: [],
     },
+    phoneNumber: '',
+    countryCode: '',
+    email: '',
   });
   const [goalsXPBreakdown, setGoalsXPBreakdown] = useState<{
     habit: number;
@@ -106,6 +113,9 @@ export function useProfile() {
         xp: totalXP,
         level: calculatedLevel,
         medals: medals,
+        phoneNumber: profileData.phone_number || '',
+        countryCode: profileData.country_code || '',
+        email: profileData.email || user.email || '',
       });
 
       setGoalsXPBreakdown(breakdown);
@@ -114,6 +124,46 @@ export function useProfile() {
       console.error("Error fetching profile:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates: {
+    phoneNumber?: string;
+    countryCode?: string;
+    email?: string;
+  }) => {
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (updates.phoneNumber !== undefined) {
+        updateData.phone_number = updates.phoneNumber;
+      }
+      if (updates.countryCode !== undefined) {
+        updateData.country_code = updates.countryCode;
+      }
+      if (updates.email !== undefined) {
+        updateData.email = updates.email;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setProfile(prev => ({
+        ...prev,
+        ...updates,
+      }));
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
     }
   };
 
@@ -355,6 +405,7 @@ export function useProfile() {
     goalsXPBreakdown,
     achievementXP,
     addXP,
+    updateProfile,
     syncProfileXPToGoals,
     checkAndAwardMedals,
     awardMedalForGoalCompletion,

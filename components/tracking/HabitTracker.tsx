@@ -14,6 +14,7 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { HabitGoal, Goal } from '@/types/Goal';
+import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface HabitTrackerProps {
   goals: HabitGoal[];
@@ -562,6 +563,9 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
                 </TouchableOpacity>
               </View>
 
+              {/* Notification Channel Tracker */}
+              <NotificationChannelTracker goal={goal} />
+
               {((goal as unknown as HabitGoal).targetDays || editMode[goal.id]) && (
                 <View style={styles.progressSection}>
                   <View style={styles.progressHeader}>
@@ -652,8 +656,6 @@ export function HabitTracker({ goals }: HabitTrackerProps) {
                   ))}
                 </View>
               </View>
-
-
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>

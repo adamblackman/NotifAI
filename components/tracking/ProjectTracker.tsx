@@ -14,6 +14,7 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { ProjectGoal, Task, Goal } from '@/types/Goal';
+import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface ProjectTrackerProps {
   goals: ProjectGoal[];
@@ -545,6 +546,9 @@ export function ProjectTracker({ goals }: ProjectTrackerProps) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Notification Channel Tracker */}
+              <NotificationChannelTracker goal={goal} />
 
               <View style={styles.progressSection}>
                 <View style={styles.progressHeader}>

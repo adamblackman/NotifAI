@@ -14,6 +14,7 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { LearnGoal, CurriculumItem, Goal } from '@/types/Goal';
+import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface LearnTrackerProps {
   goals: LearnGoal[];
@@ -659,6 +660,9 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Notification Channel Tracker */}
+              <NotificationChannelTracker goal={goal} />
 
               <View style={styles.progressOverview}>
                 <Text style={styles.progressLabel}>Progress</Text>

@@ -1,36 +1,40 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Bell, Mail, MessageCircle } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Bell } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 
 interface NotificationChannelSelectorProps {
   selectedChannels: string[];
   onChannelsChange: (channels: string[]) => void;
   availableChannels?: string[];
+  showTitle?: boolean;
 }
 
 const channelConfig = {
   push: {
-    icon: Bell,
+    icon: 'lucide',
     label: 'Push',
     color: Colors.primary,
   },
   email: {
-    icon: Mail,
-    label: 'Email',
-    color: Colors.success,
+    icon: 'image',
+    label: 'Gmail',
+    color: '#EA4335',
+    imageSource: require('@/assets/images/gmail.png'),
   },
   whatsapp: {
-    icon: MessageCircle,
+    icon: 'image',
     label: 'WhatsApp',
     color: '#25D366',
+    imageSource: require('@/assets/images/whatsapp.png'),
   },
 };
 
 export function NotificationChannelSelector({ 
   selectedChannels, 
   onChannelsChange,
-  availableChannels = ['push', 'email', 'whatsapp']
+  availableChannels = ['push', 'email', 'whatsapp'],
+  showTitle = true
 }: NotificationChannelSelectorProps) {
   const toggleChannel = (channel: string) => {
     if (selectedChannels.includes(channel)) {
@@ -40,13 +44,36 @@ export function NotificationChannelSelector({
     }
   };
 
+  const renderIcon = (channel: string, config: any, isSelected: boolean) => {
+    if (config.icon === 'lucide') {
+      return (
+        <Bell 
+          size={20} 
+          color={isSelected ? Colors.white : config.color} 
+        />
+      );
+    } else {
+      return (
+        <Image 
+          source={config.imageSource}
+          style={[
+            styles.brandIcon,
+            isSelected && styles.brandIconSelected
+          ]}
+          resizeMode="contain"
+        />
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Notification Channels</Text>
+      {showTitle && (
+        <Text style={styles.title}>Notification Channels</Text>
+      )}
       <View style={styles.channelsContainer}>
         {availableChannels.map((channel) => {
           const config = channelConfig[channel as keyof typeof channelConfig];
-          const Icon = config.icon;
           const isSelected = selectedChannels.includes(channel);
           
           return (
@@ -55,14 +82,11 @@ export function NotificationChannelSelector({
               style={[
                 styles.channelButton,
                 isSelected && styles.channelButtonSelected,
-                { borderColor: config.color }
+                { borderColor: isSelected ? config.color : Colors.gray300 }
               ]}
               onPress={() => toggleChannel(channel)}
             >
-              <Icon 
-                size={20} 
-                color={isSelected ? Colors.white : config.color} 
-              />
+              {renderIcon(channel, config, isSelected)}
               <Text style={[
                 styles.channelLabel,
                 isSelected && styles.channelLabelSelected
@@ -90,6 +114,7 @@ const styles = StyleSheet.create({
   channelsContainer: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
   },
   channelButton: {
     flexDirection: 'row',
@@ -100,10 +125,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: Colors.white,
     gap: 6,
+    minWidth: 80,
   },
   channelButtonSelected: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   channelLabel: {
     fontSize: 14,
@@ -112,5 +137,12 @@ const styles = StyleSheet.create({
   },
   channelLabelSelected: {
     color: Colors.white,
+  },
+  brandIcon: {
+    width: 20,
+    height: 20,
+  },
+  brandIconSelected: {
+    tintColor: Colors.white,
   },
 });

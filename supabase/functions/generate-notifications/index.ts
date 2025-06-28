@@ -30,12 +30,15 @@ serve(async (req) => {
       .from("profiles")
       .select(`
         id,
+        email,
+        phone_number,
         preferences!inner(
           notification_window_start,
           notification_window_end,
           notification_days,
           personality,
-          timezone
+          timezone,
+          enabled_channels
         )
       `);
 
@@ -120,14 +123,14 @@ async function processUserNotifications(
   const { data: recentNotifications, error: notificationsError } =
     await supabaseClient
       .from("scheduled_notifications")
-      .select("goal_id, scheduled_at, message")
+      .select("goal_id, scheduled_at, message, channel")
       .eq("user_id", user.id)
       .gte("scheduled_at", weekAgo.toISOString());
 
   // Get today's scheduled notifications to avoid conflicts
   const { data: todaysNotifications, error: todaysError } = await supabaseClient
     .from("scheduled_notifications")
-    .select("scheduled_at")
+    .select("scheduled_at, channel")
     .eq("user_id", user.id)
     .gte("scheduled_at", todayStart.toISOString())
     .lte("scheduled_at", todayEnd.toISOString())
@@ -142,32 +145,79 @@ async function processUserNotifications(
   }
 
   let notificationsCreated = 0;
-  const existingTimes = (todaysNotifications || []).map((n) =>
-    new Date(n.scheduled_at)
-  );
+  const existingTimesByChannel: Record<string, Date[]> = {
+    push: [],
+    email: [],
+    whatsapp: [],
+  };
+
+  // Organize existing times by channel
+  (todaysNotifications || []).forEach((n) => {
+    const channel = n.channel || 'push';
+    if (!existingTimesByChannel[channel]) {
+      existingTimesByChannel[channel] = [];
+    }
+    existingTimesByChannel[channel].push(new Date(n.scheduled_at));
+  });
+
+  // Get enabled channels from user preferences
+  const enabledChannels = preferences.enabled_channels || ['push'];
 
   // Process each goal
   for (const goal of goals) {
     try {
-      const created = await processGoalNotification(
-        supabaseClient,
-        user,
-        goal,
-        preferences,
-        recentNotifications || [],
-        existingTimes,
+      // Get goal's notification channels
+      const goalChannels = goal.notification_channels || ['push'];
+      
+      // Only use channels that are enabled both in user preferences and goal settings
+      const activeChannels = goalChannels.filter(channel => 
+        enabledChannels.includes(channel)
       );
-      if (created) {
-        notificationsCreated++;
-        // Add the new time to existing times for spacing calculations
-        const newTime = await calculateScheduledTimeForGoal(
+
+      // Skip if no active channels
+      if (activeChannels.length === 0) continue;
+
+      // Check if email is enabled but user has no email
+      if (activeChannels.includes('email') && !user.email) {
+        activeChannels.splice(activeChannels.indexOf('email'), 1);
+      }
+
+      // Check if whatsapp is enabled but user has no phone
+      if (activeChannels.includes('whatsapp') && !user.phone_number) {
+        activeChannels.splice(activeChannels.indexOf('whatsapp'), 1);
+      }
+
+      // Skip if no active channels after validation
+      if (activeChannels.length === 0) continue;
+
+      // Process notifications for each active channel
+      for (const channel of activeChannels) {
+        const created = await processGoalNotificationForChannel(
+          supabaseClient,
+          user,
           goal,
-          preferences.notification_window_start,
-          preferences.notification_window_end,
-          preferences.timezone || "America/Los_Angeles",
-          existingTimes,
+          preferences,
+          recentNotifications?.filter(n => n.channel === channel) || [],
+          existingTimesByChannel[channel] || [],
+          channel
         );
-        existingTimes.push(newTime);
+
+        if (created) {
+          notificationsCreated++;
+          // Add the new time to existing times for spacing calculations
+          const newTime = await calculateScheduledTimeForGoal(
+            goal,
+            preferences.notification_window_start,
+            preferences.notification_window_end,
+            preferences.timezone || "America/Los_Angeles",
+            existingTimesByChannel[channel] || [],
+          );
+          
+          if (!existingTimesByChannel[channel]) {
+            existingTimesByChannel[channel] = [];
+          }
+          existingTimesByChannel[channel].push(newTime);
+        }
       }
     } catch (error) {
       console.error(
@@ -180,18 +230,20 @@ async function processUserNotifications(
   return notificationsCreated;
 }
 
-async function processGoalNotification(
+async function processGoalNotificationForChannel(
   supabaseClient: any,
   user: any,
   goal: any,
   preferences: any,
   recentNotifications: any[],
   existingTimes: Date[],
+  channel: string
 ): Promise<boolean> {
-  // Check if this goal has received a notification recently
+  // Check if this goal has received a notification recently on this channel
   const goalNotifications = recentNotifications.filter((n) =>
-    n.goal_id === goal.id
+    n.goal_id === goal.id && n.channel === channel
   );
+  
   const lastNotification = goalNotifications.length > 0
     ? new Date(
       Math.max(
@@ -204,6 +256,7 @@ async function processGoalNotification(
   const shouldSendNotification = await shouldSendGoalNotification(
     goal,
     lastNotification,
+    channel
   );
 
   if (!shouldSendNotification) {
@@ -215,6 +268,7 @@ async function processGoalNotification(
     goal,
     preferences,
     goalNotifications,
+    channel
   );
 
   if (!notificationData) {
@@ -239,6 +293,8 @@ async function processGoalNotification(
       message: notificationData.message,
       scheduled_at: scheduledAt.toISOString(),
       status: "pending",
+      channel: channel,
+      notification_category: goal.category
     });
 
   if (insertError) {
@@ -255,6 +311,7 @@ async function processGoalNotification(
 async function shouldSendGoalNotification(
   goal: any,
   lastNotification: Date | null,
+  channel: string
 ): Promise<boolean> {
   const now = new Date();
 
@@ -263,12 +320,21 @@ async function shouldSendGoalNotification(
     return true;
   }
 
-  // Don't send more than one notification per day
+  // Different frequency based on channel type
+  let minDaysBetweenNotifications = 1; // Default for push
+  
+  if (channel === 'email') {
+    minDaysBetweenNotifications = 2; // Less frequent for email
+  } else if (channel === 'whatsapp') {
+    minDaysBetweenNotifications = 3; // Even less frequent for WhatsApp
+  }
+
+  // Don't send more than one notification per day/period based on channel
   const daysSinceLastNotification = Math.floor(
     (now.getTime() - lastNotification.getTime()) / (1000 * 60 * 60 * 24),
   );
 
-  if (daysSinceLastNotification < 1) {
+  if (daysSinceLastNotification < minDaysBetweenNotifications) {
     return false;
   }
 
@@ -281,7 +347,7 @@ async function shouldSendGoalNotification(
   switch (goal.category) {
     case "habit":
       // Daily habits should get notifications more frequently
-      return daysSinceLastNotification >= 1;
+      return daysSinceLastNotification >= minDaysBetweenNotifications;
 
     case "project":
       // Projects need less frequent notifications unless deadline is near
@@ -291,21 +357,21 @@ async function shouldSendGoalNotification(
           (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
         );
         if (daysUntilDue <= 7) {
-          return daysSinceLastNotification >= 1; // Daily if due soon
+          return daysSinceLastNotification >= minDaysBetweenNotifications; // More frequent if due soon
         }
       }
-      return daysSinceLastNotification >= 3; // Every 3 days otherwise
+      return daysSinceLastNotification >= minDaysBetweenNotifications + 1; // Less frequent otherwise
 
     case "save":
       // Savings goals get moderate frequency
-      return daysSinceLastNotification >= 2;
+      return daysSinceLastNotification >= minDaysBetweenNotifications + 1;
 
     case "learn":
       // Learning goals get regular reminders
-      return daysSinceLastNotification >= 2;
+      return daysSinceLastNotification >= minDaysBetweenNotifications;
 
     default:
-      return daysSinceLastNotification >= 3;
+      return daysSinceLastNotification >= minDaysBetweenNotifications + 1;
   }
 }
 
@@ -313,8 +379,12 @@ async function generateNotificationWithAI(
   goal: any,
   preferences: any,
   recentNotifications: any[],
+  channel: string
 ): Promise<{ message: string } | null> {
   try {
+    // Adjust message length based on channel
+    const maxLength = channel === 'push' ? 100 : (channel === 'whatsapp' ? 160 : 500);
+    
     const openAIResponse = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -329,7 +399,7 @@ async function generateNotificationWithAI(
             {
               role: "system",
               content:
-                `You are a ${preferences.personality} goal companion that sends personalized push notifications to help users stay motivated with their goals.
+                `You are a ${preferences.personality} goal companion that sends personalized notifications to help users stay motivated with their goals.
 
 PERSONALITY GUIDELINES:
 - serious: Professional, direct, focused on results
@@ -338,35 +408,30 @@ PERSONALITY GUIDELINES:
 - funny: Light-hearted, playful, uses appropriate humor
 
 NOTIFICATION RULES:
-1. Keep messages under 100 characters for mobile notifications
+1. Keep messages under ${maxLength} characters for ${channel} notifications
 2. Be specific to the goal type and current progress
 3. Include actionable advice when appropriate
 4. Avoid repetitive language from recent notifications
 5. Match the user's personality preference
 6. Create urgency without being pushy
+7. For email notifications, use a more detailed format with greeting and sign-off
+8. For WhatsApp, use a conversational tone with emojis
 
-TIMING INTELLIGENCE:
-Use your best judgment to determine appropriate timing based on the goal's nature. Consider these examples but adapt based on context:
-
-- Morning routines (wake up, breakfast, vitamins) → Early morning (7-9am)
-- Evening routines (skincare, retainer, wind down) → Evening (7-9pm)  
-- Exercise/fitness goals → Early morning (6-8am) or after work (5-7pm)
-- Work/professional projects → Morning focus time (8-10am) or post-work (5-7pm)
-- Learning/study goals → After work when mind is fresh (5-8pm) or morning (7-9am)
-- Financial/saving goals → Morning planning time (8-10am)
-- Creative pursuits → When inspiration typically strikes (varies by person)
-- Social/relationship goals → Context-dependent timing
+CHANNEL-SPECIFIC FORMATTING:
+- push: Very concise, under 100 chars, direct call to action
+- email: More detailed with greeting, paragraphs, and sign-off (up to 500 chars)
+- whatsapp: Conversational, friendly, with emojis (up to 160 chars)
 
 The system will handle the actual scheduling - your job is to create an engaging message that motivates action.
 
 Return ONLY a JSON object with this format:
 {"message": "Your notification text here"}
 
-The message should be a complete, ready-to-send push notification.`,
+The message should be a complete, ready-to-send notification.`,
             },
             {
               role: "user",
-              content: `Generate a notification for this goal:
+              content: `Generate a ${channel} notification for this goal:
 
 GOAL DETAILS:
 - Title: ${goal.title}
@@ -384,12 +449,13 @@ ${
               }
 
 USER PERSONALITY: ${preferences.personality}
+NOTIFICATION CHANNEL: ${channel}
 
 Create a personalized, motivating notification that helps the user take action on this goal.`,
             },
           ],
           temperature: 0.7,
-          max_tokens: 150,
+          max_tokens: 250,
         }),
       },
     );

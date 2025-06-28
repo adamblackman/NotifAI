@@ -37,14 +37,14 @@ serve(async (req) => {
       },
     );
 
-    // Get user's phone from preferences
-    const { data: preferences, error: prefError } = await supabaseClient
-      .from("preferences")
-      .select("phone")
-      .eq("user_id", userId)
+    // Get user's phone from profiles
+    const { data: profile, error: profileError } = await supabaseClient
+      .from("profiles")
+      .select("phone_number")
+      .eq("id", userId)
       .single();
 
-    if (prefError || !preferences?.phone) {
+    if (profileError || !profile?.phone_number) {
       return new Response(
         JSON.stringify({ error: "User phone number not found" }),
         {
@@ -55,7 +55,7 @@ serve(async (req) => {
     }
 
     // Format phone number for WhatsApp
-    const toNumber = `whatsapp:${preferences.phone}`;
+    const toNumber = `whatsapp:${profile.phone_number}`;
     const fromNumber = `whatsapp:${Deno.env.get("TWILIO_WHATSAPP_NUMBER") ?? ""}`;
 
     // Prepare form data for Twilio

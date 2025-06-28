@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown, Edit3, Check } from 'lucide-react-native';
+import { Circle, CircleCheck as CheckCircle, Plus, Trash2, SquareCheck as CheckSquare, ChevronUp, ChevronDown, CreditCard as Edit3, Check } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 

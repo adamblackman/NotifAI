@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
-import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown, CreditCard as Edit3, Check } from 'lucide-react-native';
+import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Check } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -297,9 +297,11 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
       });
       
       // Check if goal should be completed and award medals
-      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
-      if (wasCompleted) {
-        await awardMedalForGoalCompletion('learn');
+      if (updatedGoal) {
+        const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+        if (wasCompleted) {
+          await awardMedalForGoalCompletion('learn');
+        }
       }
 
       // Sync profile XP to match the sum of all goal XP
@@ -655,7 +657,7 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                     {editMode[goal.id] ? (
                       <Check size={20} color={Colors.primary} />
                     ) : (
-                      <Edit3 size={20} color={Colors.gray600} />
+                      <Pencil size={20} color={Colors.gray600} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -761,7 +763,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   cardHeader: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   titleContainer: {
     flexDirection: 'row',

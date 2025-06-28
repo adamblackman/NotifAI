@@ -84,7 +84,7 @@ export function useGoals() {
     if (isGuestMode) {
       // Update guest goal locally
       updateGuestGoal(id, updates);
-      return guestGoals.find(g => g.id === id);
+      return guestGoals.find((g) => g.id === id);
     }
 
     if (!user) throw new Error("User not authenticated");
@@ -182,11 +182,11 @@ export function useGoals() {
   const completeGoal = async (id: string) => {
     if (isGuestMode) {
       // Handle guest goal completion locally
-      const goal = guestGoals.find(g => g.id === id);
+      const goal = guestGoals.find((g) => g.id === id);
       if (goal) {
-        updateGuestGoal(id, { 
+        updateGuestGoal(id, {
           completedAt: new Date(),
-          xpEarned: goal.xpEarned + 100
+          xpEarned: goal.xpEarned + 100,
         });
       }
       return 100;

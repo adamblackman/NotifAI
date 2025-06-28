@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, CreditCard as Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { 
   useSharedValue, 
@@ -428,9 +428,11 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       } as Partial<SaveGoal>);
       
       // Check if goal should be completed and award medals
-      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
-      if (wasCompleted) {
-        await awardMedalForGoalCompletion('save');
+      if (updatedGoal) {
+        const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+        if (wasCompleted) {
+          await awardMedalForGoalCompletion('save');
+        }
       }
       
       // Sync profile XP to match the sum of all goal XP
@@ -496,9 +498,11 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
       } as Partial<SaveGoal>);
       
       // Check if goal should be completed and award medals
-      const wasCompleted = await checkAndCompleteGoal(updatedGoal);
-      if (wasCompleted) {
-        await awardMedalForGoalCompletion('save');
+      if (updatedGoal) {
+        const wasCompleted = await checkAndCompleteGoal(updatedGoal);
+        if (wasCompleted) {
+          await awardMedalForGoalCompletion('save');
+        }
       }
       
       // Sync profile XP to match the sum of all goal XP
@@ -743,16 +747,16 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   <Text style={styles.streakNumber}>{currentStreak}</Text>
                   <Text style={styles.streakLabel}>day streak</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.editButton}
-                  onPress={() => toggleEditMode(goal.id)}
-                >
-                  {editMode[goal.id] ? (
-                    <Check size={18} color={Colors.primary} />
-                  ) : (
-                    <Edit3 size={18} color={Colors.gray600} />
-                  )}
-                </TouchableOpacity>
+                                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => toggleEditMode(goal.id)}
+                  >
+                    {editMode[goal.id] ? (
+                      <Check size={18} color={Colors.primary} />
+                    ) : (
+                      <Pencil size={18} color={Colors.gray600} />
+                    )}
+                  </TouchableOpacity>
               </View>
 
               {/* Notification Channel Tracker */}
@@ -945,7 +949,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 16,
     position: 'relative',
   },
   titleContainer: {

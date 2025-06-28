@@ -102,6 +102,7 @@ export function NotificationChannelTracker({ goal }: NotificationChannelTrackerP
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
+    marginTop: 0,
+    marginBottom: 4,
   },
 });

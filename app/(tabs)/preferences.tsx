@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useDeleteAccount } from '@/hooks/useDeleteAccount';
@@ -8,6 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
 import { DeleteAccountModal } from '@/components/ui/DeleteAccountModal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { PlatformSlider } from '@/components/ui/PlatformSlider';
+import { PlatformSafeAreaView } from '@/components/ui/PlatformSafeAreaView';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -27,6 +29,8 @@ export default function PreferencesScreen() {
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -57,49 +61,30 @@ export default function PreferencesScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-            } catch (error) {
-              console.error('Error logging out:', error);
-              Alert.alert('Error', 'Failed to log out. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      await signOut();
+      setShowLogoutModal(false);
+    } catch (error) {
+      console.error('Error logging out:', error);
+      setShowLogoutModal(false);
+      setShowDeleteConfirmModal(true);
+    }
   };
 
   const handleDeleteAccount = async () => {
     try {
       await deleteAccount();
-      
-      // Show success message
-      Alert.alert(
-        'Account Deleted',
-        'Your account has been permanently deleted. All your data has been removed from our servers.',
-        [{ text: 'OK' }]
-      );
-      
       setShowDeleteModal(false);
+      // Account deleted successfully - user will be signed out automatically
     } catch (error) {
       console.error('Error deleting account:', error);
-      Alert.alert(
-        'Deletion Failed',
-        'There was an error deleting your account. Please try again or contact support if the problem persists.',
-        [{ text: 'OK' }]
-      );
+      setShowDeleteModal(false);
+      // Show error in a confirmation modal instead of Alert
+      setShowDeleteConfirmModal(true);
     }
   };
 
@@ -109,7 +94,7 @@ export default function PreferencesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <PlatformSafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Header />
         <ScrollView 
@@ -148,7 +133,7 @@ export default function PreferencesScreen() {
           
           <View style={styles.timeSection}>
             <Text style={styles.timeLabel}>Start Time: {formatTime(startTime)}</Text>
-            <Slider
+            <PlatformSlider
               style={styles.slider}
               minimumValue={0}
               maximumValue={23}
@@ -162,7 +147,7 @@ export default function PreferencesScreen() {
           
           <View style={styles.timeSection}>
             <Text style={styles.timeLabel}>End Time: {formatTime(endTime)}</Text>
-            <Slider
+            <PlatformSlider
               style={styles.slider}
               minimumValue={0}
               maximumValue={23}
@@ -244,8 +229,29 @@ export default function PreferencesScreen() {
           onConfirm={handleDeleteAccount}
           loading={deleteLoading}
         />
+
+        <ConfirmationModal
+          visible={showLogoutModal}
+          title="Log Out"
+          message="Are you sure you want to log out?"
+          confirmText="Log Out"
+          cancelText="Cancel"
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
+          confirmStyle="destructive"
+        />
+
+        <ConfirmationModal
+          visible={showDeleteConfirmModal}
+          title="Error"
+          message="There was an error. Please try again."
+          confirmText="OK"
+          cancelText=""
+          onConfirm={() => setShowDeleteConfirmModal(false)}
+          onCancel={() => setShowDeleteConfirmModal(false)}
+        />
       </View>
-    </SafeAreaView>
+    </PlatformSafeAreaView>
   );
 }
 

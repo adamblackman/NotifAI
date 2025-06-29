@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator, Platform } from 'react-native';
 import { X, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Button } from '@/components/ui/Button';
@@ -47,12 +47,12 @@ export function DeleteAccountModal({ visible, onClose, onConfirm, loading }: Del
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.warningIconContainer}>
-              <AlertTriangle size={24} color={Colors.error} />
+              <AlertTriangle size={24} color="#dc2626" />
             </View>
             <Text style={styles.title}>Delete Account</Text>
             {!loading && (
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <X size={24} color={Colors.gray600} />
+                <X size={24} color="#6b7280" />
               </TouchableOpacity>
             )}
           </View>
@@ -148,6 +148,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 500,
     maxHeight: '90%',
+    // Web-specific styles
+    ...(Platform.OS === 'web' && {
+      minWidth: 400,
+      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+    }),
   },
   header: {
     flexDirection: 'row',

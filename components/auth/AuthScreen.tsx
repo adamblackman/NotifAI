@@ -107,7 +107,7 @@ export function AuthScreen() {
           resizeMode="contain"
         />
         <Text style={styles.subtitle}>
-          Your AI-powered buddy to remind you anything you need right when you need it
+          Your AI-powered buddy to remind you about everything you need, right when you need it.
         </Text>
         
         <Card style={styles.card}>

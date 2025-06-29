@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   guestText: {
-    bottom: 170,
+    bottom: 140,
     fontSize: 12,
     color: Colors.gray500,
     textAlign: 'center',

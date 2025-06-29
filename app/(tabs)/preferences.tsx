@@ -8,8 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
 import { DeleteAccountModal } from '@/components/ui/DeleteAccountModal';
-import { Input } from '@/components/ui/Input';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -21,7 +19,7 @@ const personalityOptions = [
 ];
 
 export default function PreferencesScreen() {
-  const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays, updateContactInfo, updateEnabledChannels } = usePreferences();
+  const { preferences, updateNotificationWindow, updatePersonality, updateNotificationDays } = usePreferences();
   const { signOut } = useAuth();
   const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
   const [startTime, setStartTime] = useState(preferences.notificationWindow.start);
@@ -29,9 +27,6 @@ export default function PreferencesScreen() {
   const [selectedDays, setSelectedDays] = useState(preferences.notificationDays || new Array(7).fill(true));
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [email, setEmail] = useState(preferences.email || '');
-  const [phone, setPhone] = useState(preferences.phone || '');
-  const [enabledChannels, setEnabledChannels] = useState(preferences.enabledChannels || ['push']);
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -59,16 +54,6 @@ export default function PreferencesScreen() {
   const handlePersonalitySelect = (value: string) => {
     updatePersonality(value as 'serious' | 'friendly' | 'motivating' | 'funny');
     setDropdownOpen(false);
-  };
-
-  const handleContactInfoSave = () => {
-    updateContactInfo(email, phone);
-    Alert.alert('Success', 'Contact information updated successfully!');
-  };
-
-  const handleChannelsUpdate = (channels: string[]) => {
-    setEnabledChannels(channels);
-    updateEnabledChannels(channels);
   };
 
   const handleLogout = () => {
@@ -134,46 +119,6 @@ export default function PreferencesScreen() {
         bounces={true}
         scrollEventThrottle={16}
       >
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Information</Text>
-          <Text style={styles.sectionDescription}>
-            Add your email and phone number to receive notifications via multiple channels
-          </Text>
-          
-          <Input
-            placeholder="Email address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          
-          <Input
-            placeholder="Phone number (e.g., +1234567890)"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            style={styles.input}
-          />
-          
-          <TouchableOpacity style={styles.saveButton} onPress={handleContactInfoSave}>
-            <Text style={styles.saveButtonText}>Save Contact Info</Text>
-          </TouchableOpacity>
-        </Card>
-
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Channels</Text>
-          <Text style={styles.sectionDescription}>
-            Choose how you want to receive notifications
-          </Text>
-          
-          <NotificationChannelSelector
-            selectedChannels={enabledChannels}
-            onChannelsChange={handleChannelsUpdate}
-          />
-        </Card>
-        
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Notification Schedule</Text>
           <Text style={styles.sectionDescription}>
@@ -339,21 +284,6 @@ const styles = StyleSheet.create({
     color: Colors.gray600,
     marginBottom: 20,
     lineHeight: 22,
-  },
-  input: {
-    marginBottom: 16,
-  },
-  saveButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
   },
   subsectionTitle: {
     fontSize: 16,

@@ -4,7 +4,6 @@ import { ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 import { Colors } from '@/constants/Colors';
 import { HabitGoal } from '@/types/Goal';
 
@@ -20,7 +19,6 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
   const [description, setDescription] = useState('');
   const [frequency, setFrequency] = useState<boolean[]>(new Array(7).fill(true));
   const [targetDays, setTargetDays] = useState('30');
-  const [notificationChannels, setNotificationChannels] = useState<string[]>(['push']);
 
   const toggleDay = (index: number) => {
     const newFrequency = [...frequency];
@@ -39,7 +37,6 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
         completedDates: [],
         targetDays: parseInt(targetDays) || 30,
         category: 'habit',
-        notificationChannels,
       });
     }
   };
@@ -100,11 +97,6 @@ export function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
           </TouchableOpacity>
         ))}
       </View>
-
-      <NotificationChannelSelector
-        selectedChannels={notificationChannels}
-        onChannelsChange={setNotificationChannels}
-      />
       
       <View style={styles.buttonContainer}>
         <Button
@@ -158,7 +150,7 @@ const styles = StyleSheet.create({
   frequencyContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   dayButton: {
     width: 40,
@@ -184,7 +176,6 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
   },
   cancelButton: {
     flex: 1,

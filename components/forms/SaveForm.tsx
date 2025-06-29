@@ -4,7 +4,6 @@ import { Plus, X, Calendar, ArrowLeft } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 import { Colors } from '@/constants/Colors';
 import { SaveGoal } from '@/types/Goal';
 
@@ -20,7 +19,6 @@ export function SaveForm({ onSubmit, onCancel }: SaveFormProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [spendingTriggers, setSpendingTriggers] = useState<string[]>([]);
   const [newTrigger, setNewTrigger] = useState('');
-  const [notificationChannels, setNotificationChannels] = useState<string[]>(['push']);
 
   const addSpendingTrigger = () => {
     if (newTrigger.trim()) {
@@ -50,7 +48,6 @@ export function SaveForm({ onSubmit, onCancel }: SaveFormProps) {
         spendingTriggers,
         SaveDates: [],
         category: 'save',
-        notificationChannels,
       });
     }
   };
@@ -124,11 +121,6 @@ export function SaveForm({ onSubmit, onCancel }: SaveFormProps) {
           </TouchableOpacity>
         </View>
       ))}
-
-      <NotificationChannelSelector
-        selectedChannels={notificationChannels}
-        onChannelsChange={setNotificationChannels}
-      />
       
       <View style={styles.buttonContainer}>
         <Button

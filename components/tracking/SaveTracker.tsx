@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, TextInput } from 'react-native';
-import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, CreditCard as Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { PiggyBank, Calendar, Flame, ChevronDown, Plus, Minus, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { 
   useSharedValue, 
@@ -15,7 +15,6 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { SaveGoal, Goal } from '@/types/Goal';
-import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface SaveTrackerProps {
   goals: SaveGoal[];
@@ -755,9 +754,6 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                 </TouchableOpacity>
               </View>
 
-              {/* Notification Channel Tracker */}
-              <NotificationChannelTracker goal={goal} />
-
               <View style={styles.progressSection}>
                 <View style={styles.amountHeader}>
                   <Text style={styles.currentAmount}>
@@ -898,6 +894,8 @@ export function SaveTracker({ goals }: SaveTrackerProps) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>

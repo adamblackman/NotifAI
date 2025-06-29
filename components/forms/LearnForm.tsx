@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Plus, X, GripVertical, ArrowLeft } from 'lucide-react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { NotificationChannelSelector } from '@/components/ui/NotificationChannelSelector';
 import { Colors } from '@/constants/Colors';
 import { LearnGoal, CurriculumItem } from '@/types/Goal';
 
@@ -17,7 +16,6 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
   const [description, setDescription] = useState('');
   const [curriculumItems, setCurriculumItems] = useState<CurriculumItem[]>([]);
   const [newItemTitle, setNewItemTitle] = useState('');
-  const [notificationChannels, setNotificationChannels] = useState<string[]>(['push']);
 
   const addCurriculumItem = () => {
     if (newItemTitle.trim()) {
@@ -57,7 +55,6 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
         curriculumItems,
         progress: 0,
         category: 'learn',
-        notificationChannels,
       });
     }
   };
@@ -122,11 +119,6 @@ export function LearnForm({ onSubmit, onCancel }: LearnFormProps) {
       </View>
       
       {curriculumItems.map((item, index) => renderItem(item, index))}
-
-      <NotificationChannelSelector
-        selectedChannels={notificationChannels}
-        onChannelsChange={setNotificationChannels}
-      />
       
       <View style={styles.buttonContainer}>
         <Button

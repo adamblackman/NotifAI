@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, TextInput } from 'react-native';
-import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown, CreditCard as Edit3, Check } from 'lucide-react-native';
+import { BookOpen, Award, CircleCheck as CheckCircle, Circle, TrendingUp, Plus, Trash2, ChevronUp, ChevronDown, Edit3, Check } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -14,7 +14,6 @@ import { Colors } from '@/constants/Colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useProfile } from '@/hooks/useProfile';
 import { LearnGoal, CurriculumItem, Goal } from '@/types/Goal';
-import { NotificationChannelTracker } from './NotificationChannelTracker';
 
 interface LearnTrackerProps {
   goals: LearnGoal[];
@@ -660,9 +659,6 @@ export function LearnTracker({ goals }: LearnTrackerProps) {
                   </TouchableOpacity>
                 </View>
               </View>
-
-              {/* Notification Channel Tracker */}
-              <NotificationChannelTracker goal={goal} />
 
               <View style={styles.progressOverview}>
                 <Text style={styles.progressLabel}>Progress</Text>

@@ -13,10 +13,9 @@ const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpaci
 
 interface FloatingActionButtonProps {
   onPress: () => void;
-  isGuestMode?: boolean;
 }
 
-export function FloatingActionButton({ onPress, isGuestMode = false }: FloatingActionButtonProps) {
+export function FloatingActionButton({ onPress }: FloatingActionButtonProps) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -35,11 +34,7 @@ export function FloatingActionButton({ onPress, isGuestMode = false }: FloatingA
 
   return (
     <AnimatedTouchableOpacity
-      style={[
-        styles.fab, 
-        isGuestMode ? styles.fabGuest : styles.fabNormal,
-        animatedStyle
-      ]}
+      style={[styles.fab, animatedStyle]}
       onPress={handlePress}
       activeOpacity={0.9}
     >
@@ -51,6 +46,7 @@ export function FloatingActionButton({ onPress, isGuestMode = false }: FloatingA
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
+    bottom: 80, // Moved down from 120 to be closer to bottom row
     right: 24,
     backgroundColor: Colors.primary,
     borderRadius: 28,
@@ -66,11 +62,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
-  },
-  fabNormal: {
-    bottom: 80, // Normal position for authenticated users
-  },
-  fabGuest: {
-    bottom: 20, // Positioned just above the guest "Create account" button
   },
 });

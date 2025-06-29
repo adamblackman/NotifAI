@@ -88,6 +88,7 @@ async function processUserNotifications(
   const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
   const mondayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday = 0 index
 
+  // Check if notifications are enabled for today
   if (!preferences.notification_days[mondayIndex]) {
     return 0;
   }
@@ -108,14 +109,9 @@ async function processUserNotifications(
     return 0;
   }
 
-  // Get recent notifications for this user (past week) + today's scheduled
+  // Get recent notifications for this user (past week)
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
 
   const { data: recentNotifications, error: notificationsError } =
     await supabaseClient
@@ -124,27 +120,15 @@ async function processUserNotifications(
       .eq("user_id", user.id)
       .gte("scheduled_at", weekAgo.toISOString());
 
-  // Get today's scheduled notifications to avoid conflicts
-  const { data: todaysNotifications, error: todaysError } = await supabaseClient
-    .from("scheduled_notifications")
-    .select("scheduled_at")
-    .eq("user_id", user.id)
-    .gte("scheduled_at", todayStart.toISOString())
-    .lte("scheduled_at", todayEnd.toISOString())
-    .order("scheduled_at");
-
-  if (notificationsError || todaysError) {
+  if (notificationsError) {
     console.error(
-      `Error fetching notifications for user ${user.id}:`,
-      notificationsError || todaysError,
+      `Error fetching recent notifications for user ${user.id}:`,
+      notificationsError,
     );
     return 0;
   }
 
   let notificationsCreated = 0;
-  const existingTimes = (todaysNotifications || []).map((n) =>
-    new Date(n.scheduled_at)
-  );
 
   // Process each goal
   for (const goal of goals) {
@@ -155,20 +139,8 @@ async function processUserNotifications(
         goal,
         preferences,
         recentNotifications || [],
-        existingTimes,
       );
-      if (created) {
-        notificationsCreated++;
-        // Add the new time to existing times for spacing calculations
-        const newTime = await calculateScheduledTimeForGoal(
-          goal,
-          preferences.notification_window_start,
-          preferences.notification_window_end,
-          preferences.timezone || "America/Los_Angeles",
-          existingTimes,
-        );
-        existingTimes.push(newTime);
-      }
+      if (created) notificationsCreated++;
     } catch (error) {
       console.error(
         `Error processing goal ${goal.id} for user ${user.id}:`,
@@ -186,7 +158,6 @@ async function processGoalNotification(
   goal: any,
   preferences: any,
   recentNotifications: any[],
-  existingTimes: Date[],
 ): Promise<boolean> {
   // Check if this goal has received a notification recently
   const goalNotifications = recentNotifications.filter((n) =>
@@ -194,9 +165,9 @@ async function processGoalNotification(
   );
   const lastNotification = goalNotifications.length > 0
     ? new Date(
-      Math.max(
-        ...goalNotifications.map((n) => new Date(n.scheduled_at).getTime()),
-      ),
+      Math.max(...goalNotifications.map((n) =>
+        new Date(n.scheduled_at).getTime()
+      )),
     )
     : null;
 
@@ -210,7 +181,7 @@ async function processGoalNotification(
     return false;
   }
 
-  // Generate notification with AI-suggested timing
+  // Generate notification using AI
   const notificationData = await generateNotificationWithAI(
     goal,
     preferences,
@@ -221,13 +192,11 @@ async function processGoalNotification(
     return false;
   }
 
-  // Calculate scheduled time with proper spacing and context-aware timing
-  const scheduledAt = await calculateScheduledTimeForGoal(
-    goal,
+  // Calculate scheduled time within user's notification window
+  const scheduledAt = calculateScheduledTime(
     preferences.notification_window_start,
     preferences.notification_window_end,
     preferences.timezone || "America/Los_Angeles",
-    existingTimes,
   );
 
   // Insert the scheduled notification
@@ -345,19 +314,11 @@ NOTIFICATION RULES:
 5. Match the user's personality preference
 6. Create urgency without being pushy
 
-TIMING INTELLIGENCE:
-Use your best judgment to determine appropriate timing based on the goal's nature. Consider these examples but adapt based on context:
-
-- Morning routines (wake up, breakfast, vitamins) → Early morning (7-9am)
-- Evening routines (skincare, retainer, wind down) → Evening (7-9pm)  
-- Exercise/fitness goals → Early morning (6-8am) or after work (5-7pm)
-- Work/professional projects → Morning focus time (8-10am) or post-work (5-7pm)
-- Learning/study goals → After work when mind is fresh (5-8pm) or morning (7-9am)
-- Financial/saving goals → Morning planning time (8-10am)
-- Creative pursuits → When inspiration typically strikes (varies by person)
-- Social/relationship goals → Context-dependent timing
-
-The system will handle the actual scheduling - your job is to create an engaging message that motivates action.
+GOAL TYPES:
+- habit: Focus on consistency, streaks, daily actions
+- project: Focus on tasks, deadlines, progress milestones
+- learn: Focus on practice, skill building, curriculum progress
+- save: Focus on progress toward target, spending awareness
 
 Return ONLY a JSON object with this format:
 {"message": "Your notification text here"}
@@ -417,132 +378,28 @@ Create a personalized, motivating notification that helps the user take action o
   }
 }
 
-async function calculateScheduledTimeForGoal(
-  goal: any,
+function calculateScheduledTime(
   windowStart: number,
   windowEnd: number,
   timezone: string,
-  existingTimes: Date[],
-): Promise<Date> {
+): Date {
   const now = new Date();
-
-  // Get optimal time range for this goal type
-  const optimalTimes = getOptimalTimeForGoalType(goal, windowStart, windowEnd);
 
   // Create a date for today in the user's timezone
   const today = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
 
-  // Try to find a time within optimal range that doesn't conflict
-  let attempts = 0;
-  const maxAttempts = 20;
+  // Random time within the notification window
+  const randomHour = Math.floor(Math.random() * (windowEnd - windowStart + 1)) +
+    windowStart;
+  const randomMinute = Math.floor(Math.random() * 60);
 
-  while (attempts < maxAttempts) {
-    // Pick random time within optimal range
-    const randomHour =
-      Math.floor(Math.random() * (optimalTimes.end - optimalTimes.start + 1)) +
-      optimalTimes.start;
-    const randomMinute = Math.floor(Math.random() * 60);
+  const scheduledTime = new Date(today);
+  scheduledTime.setHours(randomHour, randomMinute, 0, 0);
 
-    const scheduledTime = new Date(today);
-    scheduledTime.setHours(randomHour, randomMinute, 0, 0);
-
-    // If the time has already passed today, schedule for tomorrow
-    if (scheduledTime <= now) {
-      scheduledTime.setDate(scheduledTime.getDate() + 1);
-    }
-
-    // Check if this time conflicts with existing notifications (within 1 hour)
-    const hasConflict = existingTimes.some((existingTime) => {
-      const timeDiff = Math.abs(
-        scheduledTime.getTime() - existingTime.getTime(),
-      );
-      return timeDiff < (60 * 60 * 1000); // 1 hour in milliseconds
-    });
-
-    if (!hasConflict) {
-      return scheduledTime;
-    }
-
-    attempts++;
+  // If the time has already passed today, schedule for tomorrow
+  if (scheduledTime <= now) {
+    scheduledTime.setDate(scheduledTime.getDate() + 1);
   }
 
-  // If we can't find a non-conflicting optimal time, fall back to any time in window with spacing
-  return findNextAvailableTime(windowStart, windowEnd, timezone, existingTimes);
-}
-
-function getOptimalTimeForGoalType(
-  goal: any,
-  windowStart: number,
-  windowEnd: number,
-): { start: number; end: number } {
-  const category = goal.category;
-
-  // Clamp to user's notification window
-  const clamp = (hour: number) =>
-    Math.max(windowStart, Math.min(windowEnd, hour));
-
-  switch (category) {
-    case "habit":
-      // Let AI determine if morning or evening is better - provide broad range
-      return { start: clamp(7), end: clamp(21) };
-
-    case "learn":
-      // Learning can work morning or after work - let AI decide
-      return { start: clamp(7), end: clamp(20) };
-
-    case "project":
-      // Projects work well morning or after work - let AI decide
-      return { start: clamp(8), end: clamp(19) };
-
-    case "save":
-      // Financial goals generally work well throughout the day
-      return { start: clamp(8), end: clamp(18) };
-
-    default:
-      // Use full notification window for unknown categories
-      return { start: windowStart, end: windowEnd };
-  }
-}
-
-function findNextAvailableTime(
-  windowStart: number,
-  windowEnd: number,
-  timezone: string,
-  existingTimes: Date[],
-): Date {
-  const now = new Date();
-  const today = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
-
-  // Start from the beginning of the window
-  const startTime = new Date(today);
-  startTime.setHours(windowStart, 0, 0, 0);
-
-  // If start time has passed, schedule for tomorrow
-  if (startTime <= now) {
-    startTime.setDate(startTime.getDate() + 1);
-  }
-
-  // Find next available slot with 1-hour spacing
-  let currentTime = new Date(startTime);
-
-  while (currentTime.getHours() <= windowEnd) {
-    const hasConflict = existingTimes.some((existingTime) => {
-      const timeDiff = Math.abs(currentTime.getTime() - existingTime.getTime());
-      return timeDiff < (60 * 60 * 1000); // 1 hour spacing
-    });
-
-    if (!hasConflict) {
-      return currentTime;
-    }
-
-    // Move to next hour
-    currentTime.setHours(currentTime.getHours() + 1);
-  }
-
-  // If no slot available today, try tomorrow starting from window start
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(windowStart, 0, 0, 0);
-
-  return tomorrow;
+  return scheduledTime;
 }

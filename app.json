@@ -34,19 +34,7 @@
         {
           "icon": "./assets/images/notification_icon.png",
           "color": "#635BFF",
-          "defaultChannel": "default",
-          "notificationCategories": [
-            {
-              "identifier": "GOAL_COMPLETION",
-              "actions": [
-                {
-                  "identifier": "COMPLETE_ACTION",
-                  "title": "Complete",
-                  "options": ["foreground"]
-                }
-              ]
-            }
-          ]
+          "defaultChannel": "default"
         }
       ]
     ],

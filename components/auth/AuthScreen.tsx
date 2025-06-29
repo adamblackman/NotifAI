@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Linking, Modal } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
-import { useGuest } from '@/contexts/GuestContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
 export function AuthScreen() {
@@ -14,19 +13,12 @@ export function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
-  const { showSignUp, setShowSignUp } = useGuest();
-  const [isSignUp, setIsSignUp] = useState(showSignUp);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
   const { signIn, signUp, setupNotificationsForNewUser } = useAuth();
-  const { setGuestMode } = useGuest();
   const { requestNotificationPermissions } = useNotifications();
-
-  // Sync with guest context on mount
-  useEffect(() => {
-    setIsSignUp(showSignUp);
-  }, [showSignUp]);
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim() || (isSignUp && !confirmPassword.trim())) {
@@ -84,10 +76,6 @@ export function AuthScreen() {
 
   const handleBoltLogoPress = () => {
     Linking.openURL('https://bolt.new/');
-  };
-
-  const handleGuestMode = () => {
-    setGuestMode(true);
   };
 
   return (
@@ -152,9 +140,7 @@ export function AuthScreen() {
           <Button
             title={isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             onPress={() => {
-              const newSignUpState = !isSignUp;
-              setIsSignUp(newSignUpState);
-              setShowSignUp(newSignUpState);
+              setIsSignUp(!isSignUp);
               setPassword('');
               setConfirmPassword('');
               setIsPasswordVisible(false);
@@ -165,10 +151,6 @@ export function AuthScreen() {
           />
         </Card>
       </View>
-
-      <TouchableOpacity onPress={handleGuestMode} style={styles.guestLink}>
-        <Text style={styles.guestText}>Try as Guest</Text>
-      </TouchableOpacity>
 
       {/* Notification Permission Modal */}
       <Modal
@@ -253,17 +235,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 12,
-  },
-  guestLink: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignSelf: 'center',
-  },
-  guestText: {
-    bottom: 170,
-    fontSize: 12,
-    color: Colors.gray500,
-    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
